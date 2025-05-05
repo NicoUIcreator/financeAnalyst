@@ -8,8 +8,6 @@ st.set_page_config(
 )
 import pandas as pd
 import numpy as np
-import yfinance as yf
-import matplotlib.pyplot as plt
 from data_loader import (
     create_features,
     prepare_ml_data,
