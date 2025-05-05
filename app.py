@@ -1,4 +1,8 @@
 import streamlit as st
+
+# Configurar la página
+st.set_page_config(page_title="Trading Analytics Dashboard",page_icon="📈",layout="wide")
+
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -10,14 +14,6 @@ from technical_analysis import calculate_indicators, generate_signals
 from ml_models import predict_price_movement
 from dashboard import create_price_chart, create_indicator_charts, create_signal_dashboard
 from utils import format_number, calculate_returns
-
-# Configurar la página
-st.set_page_config(
-  page_title="Trading Analytics Dashboard",
-  page_icon="📈",
-  layout="wide",
-  initial_sidebar_state="expanded"
-)
 
 # Aplicar estilo personalizado
 st.markdown("""
