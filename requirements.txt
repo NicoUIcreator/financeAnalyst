@@ -8,9 +8,3 @@ xgboost==1.7.5
 torch==2.0.1
 plotly==5.15.0
 pandas_ta
-apache-airflow>=2.6.1
-ib_insync>=0.9.85
-matplotlib>=3.7.1
-tqdm>=4.65.0
-zipline-reloaded>=2.2.0
-vectorbt>=0.25.0
