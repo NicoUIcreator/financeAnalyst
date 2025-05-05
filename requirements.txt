@@ -1,10 +1,16 @@
 streamlit==1.23.0
 pip==25.1.1
 pandas==1.5.3
-numpy==1.23.5
+numpy==1.24.5
 yfinance==0.2.26
 scikit-learn==1.2.2
 xgboost==1.7.5
 torch==2.0.1
 plotly==5.15.0
 pandas_ta
+apache-airflow>=2.6.1
+ib_insync>=0.9.85
+matplotlib>=3.7.1
+tqdm>=4.65.0
+zipline-reloaded>=2.2.0
+vectorbt>=0.25.0
