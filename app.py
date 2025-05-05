@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 # Initialize session state for navigation
 if "page" not in st.session_state:
@@ -13,7 +14,6 @@ st.set_page_config(
     layout="wide"
 )
 
-import pandas as pd
 import numpy as np
 import yfinance as yf
 from data_loader import (
