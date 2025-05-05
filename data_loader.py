@@ -8,8 +8,20 @@ from sklearn.metrics import mean_squared_error, accuracy_score, classification_r
 from sklearn.model_selection import train_test_split, TimeSeriesSplit
 import xgboost as xgb
 from typing import Dict, List, Tuple, Union, Any
+import os
+import requests
 import time
 import yfinance as yf
+
+def fetch_btc_usd_info() -> Dict[str, Any]:
+    url = "https://coinranking1.p.rapidapi.com/stats"
+    querystring = {"referenceCurrencyUuid": "yhjMzLPhuIDl"}
+    headers = {
+        "x-rapidapi-key": os.getenv("rapidapi-key"),  # Use environment variable for the API key
+        "x-rapidapi-host": "coinranking1.p.rapidapi.com"
+    }
+    response = requests.get(url, headers=headers, params=querystring)
+    return response.json()
 
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
     result = df.copy()
@@ -254,9 +266,9 @@ def predict_price_movement(df: pd.DataFrame, model_name: str = "XGBoost") -> Dic
         }
 
 def evaluate_model(
-    model: Any,
-    X_test: np.ndarray,
-    y_test: np.ndarray,
+    model: Any, 
+    X_test: np.ndarray, 
+    y_test: np.ndarray, 
     is_classifier: bool = True
 ) -> Dict:
     y_pred = model.predict(X_test)
@@ -269,15 +281,17 @@ def evaluate_model(
         return {
             "accuracy": accuracy,
             "predictions": y_pred,
-            "probabilities": y_prob
+            "probabilities": y_prob,
+            "rmse": 0.0
         }
     else:
         mse = mean_squared_error(y_test, y_pred)
         rmse = np.sqrt(mse)
         return {
-            "mse": mse,
+            "accuracy": 0.0,
+            "predictions": y_pred,
             "rmse": rmse,
-            "predictions": y_pred
+            "probabilities": []
         }
 
 def generate_synthetic_data():
