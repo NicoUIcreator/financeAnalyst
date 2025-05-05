@@ -13,10 +13,10 @@ from utils import format_number, calculate_returns
 
 # Configurar la página
 st.set_page_config(
-    page_title="Trading Analytics Dashboard",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
+  page_title="Trading Analytics Dashboard",
+  page_icon="📈",
+  layout="wide",
+  initial_sidebar_state="expanded"
 )
 
 # Aplicar estilo personalizado
