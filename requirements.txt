@@ -8,3 +8,4 @@ xgboost==1.7.5
 torch==2.0.1
 plotly==5.15.0
 pandas_ta
+matplotlib
