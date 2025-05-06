@@ -34,28 +34,28 @@ def calculate_indicators(df: pd.DataFrame, selected_indicators: List[str]) -> pd
         pd.DataFrame: DataFrame con indicadores calculados
     """
     result = df.copy()
-    required_columns = ["Open", "High", "Low", "Close", "Volume"]
+    required_columns = ["Open", "High", "Low", "Price", "Volume"]
     for col in required_columns:
         if col not in result.columns:
             st.warning(f"Columna {col} no encontrada. Algunos indicadores pueden no calcularse correctamente.")
     for indicator in selected_indicators:
         if indicator == "MACD":
-            macd = ta.macd(result["Close"])
+            macd = ta.macd(result["Price"])
             result = pd.concat([result, macd], axis=1)
         elif indicator == "RSI":
-            result["RSI"] = ta.rsi(result["Close"], length=14)
+            result["RSI"] = ta.rsi(result["Price"], length=14)
         elif indicator == "Bollinger Bands":
-            bbands = ta.bbands(result["Close"], length=20)
+            bbands = ta.bbands(result["Price"], length=20)
             result = pd.concat([result, bbands], axis=1)
         elif indicator == "Stochastic":
-            stoch = ta.stoch(result["High"], result["Low"], result["Close"])
+            stoch = ta.stoch(result["High"], result["Low"], result["Price"])
             result = pd.concat([result, stoch], axis=1)
         elif indicator == "Moving Averages":
-            result["SMA_20"] = ta.sma(result["Close"], length=20)
-            result["SMA_50"] = ta.sma(result["Close"], length=50)
-            result["SMA_200"] = ta.sma(result["Close"], length=200)
-            result["EMA_12"] = ta.ema(result["Close"], length=12)
-            result["EMA_26"] = ta.ema(result["Close"], length=26)
+            result["SMA_20"] = ta.sma(result["Price"], length=20)
+            result["SMA_50"] = ta.sma(result["Price"], length=50)
+            result["SMA_200"] = ta.sma(result["Price"], length=200)
+            result["EMA_12"] = ta.ema(result["Price"], length=12)
+            result["EMA_26"] = ta.ema(result["Price"], length=26)
     return result
 
 def identify_patterns(df: pd.DataFrame) -> Dict[str, List[Dict]]:
@@ -77,20 +77,20 @@ def identify_patterns(df: pd.DataFrame) -> Dict[str, List[Dict]]:
             "open": df["Open"].iloc[i-1],
             "high": df["High"].iloc[i-1],
             "low": df["Low"].iloc[i-1],
-            "close": df["Close"].iloc[i-1]
+            "close": df["Price"].iloc[i-1]
         }
         current_candle = {
             "open": df["Open"].iloc[i],
             "high": df["High"].iloc[i],
             "low": df["Low"].iloc[i],
-            "close": df["Close"].iloc[i],
+            "close": df["Price"].iloc[i],
             "datetime": df["Datetime"].iloc[i]
         }
         next_candle = {
             "open": df["Open"].iloc[i+1],
             "high": df["High"].iloc[i+1],
             "low": df["Low"].iloc[i+1],
-            "close": df["Close"].iloc[i+1]
+            "close": df["Price"].iloc[i+1]
         }
 
         # Patrón de martillo (bullish)
@@ -162,7 +162,7 @@ def backtesting_simple(df: pd.DataFrame, initial_capital: float = 10000.0) -> Di
 
     for i in range(1, len(backtest)):
         if position == 0 and backtest["Signal_Buy"].iloc[i] >= 2:
-            entry_price = backtest["Close"].iloc[i]
+            entry_price = backtest["Price"].iloc[i]
             position = 1
             shares = capital / entry_price
             trades.append({
@@ -173,7 +173,7 @@ def backtesting_simple(df: pd.DataFrame, initial_capital: float = 10000.0) -> Di
                 "shares": shares
             })
         elif position == 1 and backtest["Signal_Sell"].iloc[i] >= 2:
-            exit_price = backtest["Close"].iloc[i]
+            exit_price = backtest["Price"].iloc[i]
             shares = capital / entry_price
             capital = shares * exit_price
             position = 0
@@ -186,7 +186,7 @@ def backtesting_simple(df: pd.DataFrame, initial_capital: float = 10000.0) -> Di
             })
 
     if position == 1:
-        exit_price = backtest["Close"].iloc[-1]
+        exit_price = backtest["Price"].iloc[-1]
         shares = capital / entry_price
         capital = shares * exit_price
         trades.append({
@@ -269,12 +269,12 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
 
     if "Bollinger Bands" in selected_indicators and "BBL_20_2.0" in result.columns and "BBU_20_2.0" in result.columns:
         signal_count += 1
-        result.loc[result["Close"] <= result["BBL_20_2.0"], "Signal_Buy"] += 1
-        result.loc[result["Close"] >= result["BBU_20_2.0"], "Signal_Sell"] += 1
-        if result["Close"].iloc[-1] <= result["BBL_20_2.0"].iloc[-1]:
+        result.loc[result["Price"] <= result["BBL_20_2.0"], "Signal_Buy"] += 1
+        result.loc[result["Price"] >= result["BBU_20_2.0"], "Signal_Sell"] += 1
+        if result["Price"].iloc[-1] <= result["BBL_20_2.0"].iloc[-1]:
             signals["summary"]["Bollinger"] = "Compra (Banda Inferior)"
             signal_value += 1
-        elif result["Close"].iloc[-1] >= result["BBU_20_2.0"].iloc[-1]:
+        elif result["Price"].iloc[-1] >= result["BBU_20_2.0"].iloc[-1]:
             signals["summary"]["Bollinger"] = "Venta (Banda Superior)"
             signal_value -= 1
         else:
@@ -312,11 +312,11 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
                       (result["SMA_20"].shift(1) <= result["SMA_50"].shift(1)), "Signal_Buy"] += 1
             result.loc[(result["SMA_20"] < result["SMA_50"]) & 
                       (result["SMA_20"].shift(1) >= result["SMA_50"].shift(1)), "Signal_Sell"] += 1
-            if result["Close"].iloc[-1] > result["SMA_20"].iloc[-1]:
+            if result["Price"].iloc[-1] > result["SMA_20"].iloc[-1]:
                 result.iloc[-1, result.columns.get_loc("Signal_Buy")] += 0.5
             else:
                 result.iloc[-1, result.columns.get_loc("Signal_Sell")] += 0.5
-            if result["Close"].iloc[-1] > result["SMA_50"].iloc[-1]:
+            if result["Price"].iloc[-1] > result["SMA_50"].iloc[-1]:
                 result.iloc[-1, result.columns.get_loc("Signal_Buy")] += 0.5
             else:
                 result.iloc[-1, result.columns.get_loc("Signal_Sell")] += 0.5
@@ -330,7 +330,7 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
                 ma_signal += "SMA 20 por debajo de SMA 50 (Bajista). "
                 ma_value -= 1
             if "SMA_200" in result.columns:
-                if result["Close"].iloc[-1] > result["SMA_200"].iloc[-1]:
+                if result["Price"].iloc[-1] > result["SMA_200"].iloc[-1]:
                     ma_signal += "Precio por encima de SMA 200 (Alcista a largo plazo)."
                     ma_value += 1
                 else:
@@ -347,14 +347,14 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
             signals["buy"].append({
                 "index": i,
                 "datetime": result["Datetime"].iloc[i],
-                "price": result["Close"].iloc[i],
+                "price": result["Price"].iloc[i],
                 "strength": result["Signal_Buy"].iloc[i]
             })
         if result["Signal_Sell"].iloc[i] >= 2:
             signals["sell"].append({
                 "index": i,
                 "datetime": result["Datetime"].iloc[i],
-                "price": result["Close"].iloc[i],
+                "price": result["Price"].iloc[i],
                 "strength": result["Signal_Sell"].iloc[i]
             })
 
@@ -391,7 +391,7 @@ if 'df' in locals():
 
     # Visualizar gráficos interactivos
     st.subheader("Interactive Chart of Closing Prices")
-    fig = px.line(df, x=df.index, y='Close', title=f"{stock_symbol} Closing Price")
+    fig = px.line(df, x=df.index, y='Price', title=f"{stock_symbol} Closing Price")
     st.plotly_chart(fig)
 
     # Seleccionar indicadores técnicos
