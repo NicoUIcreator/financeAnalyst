@@ -19,6 +19,11 @@ st.write("Please upload a CSV file containing historical price data or select a 
 
 # Opción para cargar un archivo CSV
 uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+if uploaded_file is not None:
+    file_name = uploaded_file.name 
+
+stock_symbol = file_name
+
 
 # Importar funciones definidas
 from typing import List, Dict, Tuple, Union
@@ -366,6 +371,12 @@ if uploaded_file is not None:
     st.success("File uploaded successfully!")
 else:
     # Opción para seleccionar un símbolo de acción
+    if 'df' in locals() and 'stock_symbol' in locals():
+        st.subheader("Interactive Chart of Closing Prices")
+        fig = px.line(df, x=df.index, y='Price', title=f"{stock_symbol} Closing Price")
+        st.plotly_chart(fig)
+    else:
+        st.warning("Please upload a file or enter a stock symbol first.")
     stock_symbol = st.text_input("Enter Stock Symbol (e.g., AAPL, NVDA, BTCUSD)", "AAPL")
     if st.button("Fetch Data"):
         end_date = datetime.now()
