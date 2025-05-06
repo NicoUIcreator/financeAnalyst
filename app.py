@@ -24,6 +24,12 @@ if uploaded_file is not None:
 
 stock_symbol = file_name
 
+df = uploaded_file
+
+df["Date"] = pd.to_datetime(df["Date"])
+    
+    # Establecer la columna de fecha como índice
+df.set_index("Date",inplace=True)
 
 # Importar funciones definidas
 from typing import List, Dict, Tuple, Union
@@ -373,6 +379,7 @@ else:
     # Opción para seleccionar un símbolo de acción
     if 'df' in locals() and 'stock_symbol' in locals():
         st.subheader("Interactive Chart of Closing Prices")
+
         fig = px.line(df, x=df.index, y='Price', title=f"{stock_symbol} Closing Price")
         st.plotly_chart(fig)
     else:
