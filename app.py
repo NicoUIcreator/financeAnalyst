@@ -5,11 +5,8 @@ import pandas_ta as ta
 from datetime import datetime, timedelta
 import plotly.express as px
 import os
-from dotenv import load_dotenv
 import yfinance as yf
 
-# Cargar variables de entorno
-load_dotenv()
 
 st.set_page_config(page_title="Financial Analyst App", layout="wide")
 
