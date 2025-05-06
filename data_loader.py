@@ -14,8 +14,8 @@ import time
 import yfinance as yf
 
 def fetch_btc_usd_info() -> Dict[str, Any]:
-    url = "https://coinranking1.p.rapidapi.com/stats"
-    querystring = {"referenceCurrencyUuid": "yhjMzLPhuIDl"}
+    url = "https://coinranking1.p.rapidapi.com/coin/Qwsogvtv82FCd/history"
+    querystring = {"referenceCurrencyUuid":"yhjMzLPhuIDl","timePeriod":"24h"}
     headers = {
         "x-rapidapi-key": os.getenv("rapidapi-key"),  # Use environment variable for the API key
         "x-rapidapi-host": "coinranking1.p.rapidapi.com"
