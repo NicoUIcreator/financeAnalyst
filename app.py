@@ -13,6 +13,22 @@ st.set_page_config(page_title="Financial Analyst App", layout="wide")
 st.title("Financial Analyst App")
 st.write("Analiza datos de acciones y genera información.")
 
+# --- DEBUGGING PRINTS ---
+print("DEBUG: Script A - Antes de inicializar session_state.")
+print(f"DEBUG: Tipo de st: {type(st)}")
+if hasattr(st, 'session_state'):
+    print(f"DEBUG: Tipo de st.session_state: {type(st.session_state)}")
+    try:
+        # Intentar listar claves si session_state ya es un objeto similar a un dict
+        keys = list(st.session_state.keys()) # Esto podría fallar si session_state no está completamente listo
+        print(f"DEBUG: Claves existentes en st.session_state (si las hay antes de init): {keys}")
+    except Exception as e:
+        print(f"DEBUG: Error al intentar acceder a las claves de st.session_state (antes de init): {e}")
+else:
+    print("DEBUG: st.session_state no existe como atributo de st todavía (antes de init).")
+# --- FIN DEBUGGING PRINTS ---
+
+
 # --- Inicializar st.session_state ---
 if 'df_data' not in st.session_state:
     st.session_state.df_data = None # DataFrame original cargado/descargado
@@ -20,7 +36,7 @@ if 'df_processed' not in st.session_state:
     st.session_state.df_processed = None # DataFrame con columnas estandarizadas e indicadores
 if 'stock_symbol_display' not in st.session_state:
     st.session_state.stock_symbol_display = "" # Para mostrar en títulos de gráficos, etc.
-if 'indicators_calculated' not in st.session_state:
+if 'indicators_calculated' not in st.session_state: # Esta es la línea 23 según el traceback del usuario
     st.session_state.indicators_calculated = False
 if 'signals_generated' not in st.session_state:
     st.session_state.signals_generated = False
@@ -32,26 +48,17 @@ def calculate_indicators(df: pd.DataFrame, selected_indicators: List[str]) -> pd
     required_columns = ["Open", "High", "Low", "Price", "Volume"] # 'Price' es nuestra columna estandarizada
     for col in required_columns:
         if col not in result.columns:
-            # Intentar encontrar versiones en minúscula si las mayúsculas no están
             col_lower = col.lower()
             if col_lower in result.columns:
                 result.rename(columns={col_lower: col}, inplace=True)
-            # else: # Comentado para reducir verbosidad inicial, se puede reactivar
-                # st.warning(f"Columna {col} (o {col_lower}) no encontrada. Algunos indicadores pueden no calcularse correctamente.")
-                # Si una columna crítica como 'Price' falta, el indicador fallará de todas formas.
-                # Pandas TA a menudo puede encontrar 'open', 'high', 'low', 'close', 'volume' automáticamente.
 
-    # Asegurarse de que 'Price' exista antes de intentar usarla masivamente
     if "Price" not in result.columns:
         st.error("La columna 'Price' es esencial y no se encontró o no se pudo mapear. No se pueden calcular indicadores.")
-        return result # Devolver el dataframe sin cambios o lanzar una excepción más específica
+        return result
 
     for indicator in selected_indicators:
         try:
             if indicator == "MACD":
-                # pandas_ta usa 'close' por defecto, así que si tenemos 'Price', podemos pasarla explícitamente.
-                # O, si 'close' existe y es lo que queremos usar, pandas_ta lo tomará.
-                # Aquí asumimos que 'Price' es la columna que queremos usar como 'close' para los indicadores.
                 macd_df = ta.macd(result["Price"], fast=12, slow=26, signal=9)
                 if macd_df is not None and not macd_df.empty:
                     result = pd.concat([result, macd_df], axis=1)
@@ -66,7 +73,6 @@ def calculate_indicators(df: pd.DataFrame, selected_indicators: List[str]) -> pd
                 else:
                     st.warning(f"No se pudieron calcular Bollinger Bands.")
             elif indicator == "Stochastic":
-                # Stochastic necesita High, Low, Price (Close)
                 if all(col in result.columns for col in ["High", "Low", "Price"]):
                     stoch_df = ta.stoch(result["High"], result["Low"], result["Price"], k=14, d=3, smooth_k=3)
                     if stoch_df is not None and not stoch_df.empty:
@@ -83,6 +89,7 @@ def calculate_indicators(df: pd.DataFrame, selected_indicators: List[str]) -> pd
                 result["EMA_26"] = ta.ema(result["Price"], length=26)
         except Exception as e:
             st.error(f"Error calculando el indicador {indicator}: {e}")
+            print(f"ERROR_CALC_INDICATOR ({indicator}): {e}") # DEBUG PRINT
     return result
 
 def identify_patterns(df: pd.DataFrame) -> Dict[str, List[Dict]]:
@@ -91,12 +98,12 @@ def identify_patterns(df: pd.DataFrame) -> Dict[str, List[Dict]]:
     if not all(col in df.columns for col in required_cols):
         st.warning(f"Identify Patterns: Faltan una o más columnas requeridas: {', '.join(required_cols)}")
         return patterns
-    if len(df) < 3: # Necesitamos al menos 3 velas para algunas lógicas que miran prev y current
+    if len(df) < 3:
         st.warning("Identify Patterns: No hay suficientes datos (se necesitan al menos 3 filas).")
         return patterns
 
-    for i in range(1, len(df) - 1): # Ajustado para evitar ir más allá de los límites con next_candle si se usara
-        current_datetime = df.index[i] # Usar el índice para la fecha/hora
+    for i in range(1, len(df) - 1):
+        current_datetime = df.index[i]
         prev_candle = {
             "open": df["Open"].iloc[i-1], "high": df["High"].iloc[i-1],
             "low": df["Low"].iloc[i-1], "close": df["Price"].iloc[i-1]
@@ -104,60 +111,63 @@ def identify_patterns(df: pd.DataFrame) -> Dict[str, List[Dict]]:
         current_candle = {
             "open": df["Open"].iloc[i], "high": df["High"].iloc[i],
             "low": df["Low"].iloc[i], "close": df["Price"].iloc[i],
-            "datetime": current_datetime # Usar el índice (que es un Timestamp)
+            "datetime": current_datetime
         }
-        # next_candle no se usa en los patrones actuales, pero si se usara:
-        # next_candle = {
-        #     "open": df["Open"].iloc[i+1], "high": df["High"].iloc[i+1],
-        #     "low": df["Low"].iloc[i+1], "close": df["Price"].iloc[i+1]
-        # }
 
-        # Patrón de martillo (bullish)
         body_size = abs(current_candle["close"] - current_candle["open"])
-        if body_size == 0: body_size = 0.00001 # Evitar división por cero si es un doji
+        if body_size == 0: body_size = 0.00001
 
         is_bullish_candle = current_candle["close"] > current_candle["open"]
-        upper_shadow = current_candle["high"] - current_candle["close"] if is_bullish_candle else current_candle["high"] - current_candle["open"]
-        lower_shadow = current_candle["open"] - current_candle["low"] if is_bullish_candle else current_candle["close"] - current_candle["low"]
+        is_bearish_candle = current_candle["close"] < current_candle["open"] # Definido para claridad
 
-        # Hammer: cuerpo pequeño, sombra inferior larga (>2x cuerpo), sombra superior pequeña (<0.1-0.3x cuerpo), tendencia previa bajista
-        if (is_bullish_candle and
-            upper_shadow < body_size * 0.3 and # Sombra superior pequeña
-            lower_shadow > body_size * 2 and   # Sombra inferior larga
-            prev_candle["close"] < prev_candle["open"]): # Tendencia previa bajista (vela anterior roja)
+        # Sombra superior e inferior calculadas correctamente independientemente de si es alcista o bajista
+        upper_shadow = current_candle["high"] - max(current_candle["open"], current_candle["close"])
+        lower_shadow = min(current_candle["open"], current_candle["close"]) - current_candle["low"]
+
+
+        if (is_bullish_candle and # Hammer es usualmente verde, pero algunos lo aceptan rojo si cumple las proporciones.
+            upper_shadow < body_size * 0.3 and
+            lower_shadow > body_size * 2 and
+            prev_candle["close"] < prev_candle["open"]):
             patterns["bullish"].append({
                 "pattern": "Hammer", "datetime": current_candle["datetime"],
                 "price": current_candle["close"]
             })
 
-        # Patrón de estrella fugaz (bearish)
-        is_bearish_candle = current_candle["close"] < current_candle["open"]
-        # Shooting Star: cuerpo pequeño, sombra superior larga (>2x cuerpo), sombra inferior pequeña (<0.1-0.3x cuerpo), tendencia previa alcista
-        if (is_bearish_candle and # Puede ser cuerpo pequeño alcista o bajista, pero la señal es bajista
-            upper_shadow > body_size * 2 and   # Sombra superior larga
-            lower_shadow < body_size * 0.3 and # Sombra inferior pequeña
-            prev_candle["close"] > prev_candle["open"]): # Tendencia previa alcista (vela anterior verde)
+        # Shooting Star: cuerpo pequeño, sombra superior larga, sombra inferior pequeña, tendencia previa alcista
+        # El cuerpo puede ser rojo o verde, pero la implicación es bajista.
+        if (upper_shadow > body_size * 2 and
+            lower_shadow < body_size * 0.3 and
+            prev_candle["close"] > prev_candle["open"]):
              patterns["bearish"].append({
                 "pattern": "Shooting Star", "datetime": current_candle["datetime"],
                 "price": current_candle["close"]
             })
 
-        # Patrón de envolvente alcista (bullish engulfing)
-        if (is_bullish_candle and # Vela actual es alcista
-            prev_candle["close"] < prev_candle["open"] and # Vela anterior es bajista
-            current_candle["close"] > prev_candle["open"] and # Cierre actual envuelve apertura anterior
-            current_candle["open"] < prev_candle["close"]):   # Apertura actual envuelve cierre anterior
+        if (is_bullish_candle and
+            prev_candle["close"] < prev_candle["open"] and
+            current_candle["close"] > prev_candle["open"] and
+            current_candle["open"] < prev_candle["close"]):
             patterns["bullish"].append({
                 "pattern": "Bullish Engulfing", "datetime": current_candle["datetime"],
                 "price": current_candle["close"]
             })
 
-        # Patrón de envolvente bajista (bearish engulfing)
-        if (is_bearish_candle and # Vela actual es bajista
-            prev_candle["close"] > prev_candle["open"] and # Vela anterior es alcista
-            current_candle["close"] < prev_candle["open"] and # Cierre actual envuelve apertura anterior (error en original, debe ser prev_candle["close"])
-                                                               # No, el original estaba bien: el cuerpo de la actual envuelve el cuerpo de la anterior
-            current_candle["open"] > prev_candle["close"]):   # Apertura actual envuelve cierre anterior
+        if (is_bearish_candle and
+            prev_candle["close"] > prev_candle["open"] and
+            current_candle["close"] < prev_candle["open"] and # Error original aquí: debe ser prev_candle['close'] para cuerpo real
+            current_candle["open"] > prev_candle["close"]):   # Error original aquí: debe ser prev_candle['open'] para cuerpo real
+                                                              # Corregido: current_candle.open > prev_candle.open AND current_candle.close < prev_candle.close
+                                                              # La lógica original de envolver el cuerpo es:
+                                                              # Bearish Engulfing: prev is green, current is red. current.open > prev.open, current.close < prev.close
+                                                              #  Y current.open > prev.close, current.close < prev.open
+            # Lógica original del usuario para envolvente bajista:
+            # current_candle["close"] < current_candle["open"] (vela actual roja)
+            # prev_candle["close"] > prev_candle["open"] (vela anterior verde)
+            # current_candle["close"] < prev_candle["open"] (cierre actual por debajo de apertura anterior)
+            # current_candle["open"] > prev_candle["close"] (apertura actual por encima de cierre anterior)
+            # Esta lógica parece correcta para "outside bar" que envuelve el rango total de la anterior.
+            # Para "body engulfing", sería current_close < prev_close y current_open > prev_open
             patterns["bearish"].append({
                 "pattern": "Bearish Engulfing", "datetime": current_candle["datetime"],
                 "price": current_candle["close"]
@@ -170,21 +180,17 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
     signals = {"buy": [], "sell": [], "summary": {}, "strength": 0}
     result["Signal_Buy"] = 0
     result["Signal_Sell"] = 0
-    result["Signal_Strength"] = 0 # No usado actualmente para generar Signal_Buy/Sell, pero calculado al final
-    signal_count = 0 # Número de indicadores que contribuyen a la señal
-    signal_value = 0 # Suma ponderada de señales (+ para compra, - para venta)
+    result["Signal_Strength"] = 0
+    signal_count = 0
+    signal_value = 0
 
-    # Nombres de columna de MACD pueden variar (ej. MACD_12_26_9, MACDs_12_26_9, MACDh_12_26_9)
-    # Intentamos encontrar las columnas correctas
     macd_line_col = next((col for col in result.columns if 'MACD_' in col and 'MACDs' not in col and 'MACDh' not in col), None)
-    macd_signal_col = next((col for col in result.columns if 'MACDs_' in col), None) # MACD Signal line
+    macd_signal_col = next((col for col in result.columns if 'MACDs_' in col), None)
 
     if "MACD" in selected_indicators and macd_line_col and macd_signal_col:
         signal_count += 1
-        # Cruce alcista de MACD
         result.loc[(result[macd_line_col] > result[macd_signal_col]) &
                    (result[macd_line_col].shift(1) <= result[macd_signal_col].shift(1)), "Signal_Buy"] += 1
-        # Cruce bajista de MACD
         result.loc[(result[macd_line_col] < result[macd_signal_col]) &
                    (result[macd_line_col].shift(1) >= result[macd_signal_col].shift(1)), "Signal_Sell"] += 1
 
@@ -192,14 +198,14 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
             if result[macd_line_col].iloc[-1] > result[macd_signal_col].iloc[-1]:
                 signals["summary"]["MACD"] = "Compra"
                 signal_value += 1
-            elif result[macd_line_col].iloc[-1] < result[macd_signal_col].iloc[-1]: # Añadido elif para claridad
+            elif result[macd_line_col].iloc[-1] < result[macd_signal_col].iloc[-1]:
                 signals["summary"]["MACD"] = "Venta"
                 signal_value -= 1
             else:
                 signals["summary"]["MACD"] = "Neutral"
 
 
-    if "RSI" in selected_indicators and "RSI" in result.columns: # Asumiendo que la columna se llama 'RSI'
+    if "RSI" in selected_indicators and "RSI" in result.columns:
         signal_count += 1
         result.loc[result["RSI"] < 30, "Signal_Buy"] += 1
         result.loc[result["RSI"] > 70, "Signal_Sell"] += 1
@@ -208,19 +214,18 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
             if rsi_value < 30:
                 signals["summary"]["RSI"] = "Fuerte Compra (Sobrevendido < 30)"
                 signal_value += 2
-            elif rsi_value < 45: # Ajustado el umbral para "Compra"
+            elif rsi_value < 45:
                 signals["summary"]["RSI"] = "Compra (< 45)"
                 signal_value += 1
             elif rsi_value > 70:
                 signals["summary"]["RSI"] = "Fuerte Venta (Sobrecomprado > 70)"
                 signal_value -= 2
-            elif rsi_value > 55: # Ajustado el umbral para "Venta"
+            elif rsi_value > 55:
                 signals["summary"]["RSI"] = "Venta (> 55)"
                 signal_value -= 1
             else:
                 signals["summary"]["RSI"] = "Neutral (45-55)"
 
-    # Nombres de columna de Bollinger Bands (ej. BBL_20_2.0, BBU_20_2.0)
     bbl_col = next((col for col in result.columns if 'BBL_' in col), None)
     bbu_col = next((col for col in result.columns if 'BBU_' in col), None)
 
@@ -238,34 +243,31 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
             else:
                 signals["summary"]["Bollinger"] = "Neutral (Dentro de Bandas)"
 
-    # Nombres de columna de Stochastic (ej. STOCHk_14_3_3, STOCHd_14_3_3)
     stoch_k_col = next((col for col in result.columns if 'STOCHk_' in col), None)
     stoch_d_col = next((col for col in result.columns if 'STOCHd_' in col), None)
 
     if "Stochastic" in selected_indicators and stoch_k_col and stoch_d_col:
         signal_count += 1
-        # Cruce alcista de Estocástico en zona de sobreventa
         result.loc[(result[stoch_k_col] > result[stoch_d_col]) &
                    (result[stoch_k_col].shift(1) <= result[stoch_d_col].shift(1)) &
-                   (result[stoch_k_col] < 20), "Signal_Buy"] += 1 # Algunos usan <20 o <30 para sobreventa
-        # Cruce bajista de Estocástico en zona de sobrecompra
+                   (result[stoch_k_col] < 20), "Signal_Buy"] += 1
         result.loc[(result[stoch_k_col] < result[stoch_d_col]) &
                    (result[stoch_k_col].shift(1) >= result[stoch_d_col].shift(1)) &
-                   (result[stoch_k_col] > 80), "Signal_Sell"] += 1 # Algunos usan >80 o >70 para sobrecompra
+                   (result[stoch_k_col] > 80), "Signal_Sell"] += 1
 
         if not result.empty:
             stoch_k_val = result[stoch_k_col].iloc[-1]
             stoch_d_val = result[stoch_d_col].iloc[-1]
-            if stoch_k_val < 20 and stoch_k_val > stoch_d_val: # Cruce alcista reciente en sobreventa
+            if stoch_k_val < 20 and stoch_k_val > stoch_d_val:
                 signals["summary"]["Stochastic"] = "Fuerte Compra (Cruce Alcista en Sobrevendido < 20)"
                 signal_value += 2
-            elif stoch_k_val > 80 and stoch_k_val < stoch_d_val: # Cruce bajista reciente en sobrecompra
+            elif stoch_k_val > 80 and stoch_k_val < stoch_d_val:
                 signals["summary"]["Stochastic"] = "Fuerte Venta (Cruce Bajista en Sobrecomprado > 80)"
                 signal_value -= 2
-            elif stoch_k_val > stoch_d_val: # Tendencia general del estocástico
+            elif stoch_k_val > stoch_d_val:
                 signals["summary"]["Stochastic"] = "Compra (K% > D%)"
                 signal_value += 1
-            elif stoch_k_val < stoch_d_val: # Añadido elif para claridad
+            elif stoch_k_val < stoch_d_val:
                 signals["summary"]["Stochastic"] = "Venta (K% < D%)"
                 signal_value -= 1
             else:
@@ -273,20 +275,19 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
 
 
     if "Moving Averages" in selected_indicators:
-        has_ma_signal = False # Para el resumen
-        # Cruce Dorado (SMA50 sobre SMA200 es a más largo plazo, SMA20 sobre SMA50 es más a corto/medio)
+        has_ma_signal = False
+        current_ma_value = 0 # Para el resumen de signal_value
+        ma_summary_parts = []
+
         if "SMA_20" in result.columns and "SMA_50" in result.columns:
-            signal_count += 1 # Consideramos este cruce como una fuente de señal
+            # Solo contar una vez para signal_count si se usa cualquier cruce de MA
+            if not has_ma_signal: signal_count += 1
             has_ma_signal = True
-            # Cruce alcista de SMA20 sobre SMA50
+            
             result.loc[(result["SMA_20"] > result["SMA_50"]) &
                        (result["SMA_20"].shift(1) <= result["SMA_50"].shift(1)), "Signal_Buy"] += 1
-            # Cruce bajista de SMA20 sobre SMA50 (Cruce de la Muerte a corto plazo)
             result.loc[(result["SMA_20"] < result["SMA_50"]) &
                        (result["SMA_20"].shift(1) >= result["SMA_50"].shift(1)), "Signal_Sell"] += 1
-
-            ma_summary_parts = []
-            current_ma_value = 0
 
             if not result.empty:
                 if result["SMA_20"].iloc[-1] > result["SMA_50"].iloc[-1]:
@@ -295,55 +296,37 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
                 else:
                     ma_summary_parts.append("SMA20 < SMA50 (Negativo Corto Plazo)")
                     current_ma_value -= 1
-                
-                # Considerar precio relativo a SMAs para la señal actual
-                if "Price" in result.columns:
-                    if result["Price"].iloc[-1] > result["SMA_20"].iloc[-1]:
-                        # No añadir a Signal_Buy aquí directamente, sino al resumen de fuerza
-                        # result.iloc[-1, result.columns.get_loc("Signal_Buy")] += 0.5 # Original, pero mejor para resumen
-                        pass # Se considera en signal_value
-                    # else:
-                        # result.iloc[-1, result.columns.get_loc("Signal_Sell")] += 0.5
-                    if result["Price"].iloc[-1] > result["SMA_50"].iloc[-1]:
-                        # result.iloc[-1, result.columns.get_loc("Signal_Buy")] += 0.5
-                        pass
-                    # else:
-                        # result.iloc[-1, result.columns.get_loc("Signal_Sell")] += 0.5
             
-            # Lógica para SMA200 si existe
-            if "SMA_200" in result.columns and "Price" in result.columns and not result.empty:
-                if result["Price"].iloc[-1] > result["SMA_200"].iloc[-1]:
-                    ma_summary_parts.append("Precio > SMA200 (Positivo Largo Plazo)")
-                    current_ma_value += 1.5 # Más peso a la tendencia a largo plazo
-                else:
-                    ma_summary_parts.append("Precio < SMA200 (Negativo Largo Plazo)")
-                    current_ma_value -= 1.5
+        if "SMA_200" in result.columns and "Price" in result.columns and not result.empty:
+            if not has_ma_signal: signal_count += 1 # Contar si este es el único indicador MA usado
+            has_ma_signal = True
+            if result["Price"].iloc[-1] > result["SMA_200"].iloc[-1]:
+                ma_summary_parts.append("Precio > SMA200 (Positivo Largo Plazo)")
+                current_ma_value += 1.5
+            else:
+                ma_summary_parts.append("Precio < SMA200 (Negativo Largo Plazo)")
+                current_ma_value -= 1.5
             
-            if has_ma_signal : # Solo si se calcularon las MAs para el cruce
-                signals["summary"]["Moving Averages"] = ". ".join(ma_summary_parts) if ma_summary_parts else "Neutral"
-                signal_value += current_ma_value
+        if has_ma_signal:
+            signals["summary"]["Moving Averages"] = ". ".join(ma_summary_parts) if ma_summary_parts else "Neutral"
+            signal_value += current_ma_value
 
 
     if signal_count > 0:
-        # Normalizar la fuerza de la señal entre -100 y 100
-        # El máximo valor posible para signal_value es signal_count * 2 (si todos dan Fuerte Compra)
-        # El mínimo es signal_count * -2 (si todos dan Fuerte Venta)
-        max_abs_value = signal_count * 2 if signal_count * 2 != 0 else 1 # Evitar división por cero
+        max_abs_value = signal_count * 2 if signal_count * 2 != 0 else 1
         signals["strength"] = int((signal_value / max_abs_value) * 100)
 
 
-    # Llenar las listas de señales 'buy' y 'sell' para el historial
-    # Usar el índice para datetime
     if not result.empty:
         for i in range(len(result)):
-            if result["Signal_Buy"].iloc[i] >= 2: # Umbral para considerar una señal de compra fuerte
+            if result["Signal_Buy"].iloc[i] >= 2:
                 signals["buy"].append({
-                    "index": result.index[i], # Guardar el índice (timestamp)
+                    "index": result.index[i],
                     "datetime": result.index[i].strftime('%Y-%m-%d %H:%M:%S') if isinstance(result.index[i], pd.Timestamp) else str(result.index[i]),
                     "price": result["Price"].iloc[i] if "Price" in result.columns else None,
                     "strength": result["Signal_Buy"].iloc[i]
                 })
-            if result["Signal_Sell"].iloc[i] >= 2: # Umbral para considerar una señal de venta fuerte
+            if result["Signal_Sell"].iloc[i] >= 2:
                 signals["sell"].append({
                     "index": result.index[i],
                     "datetime": result.index[i].strftime('%Y-%m-%d %H:%M:%S') if isinstance(result.index[i], pd.Timestamp) else str(result.index[i]),
@@ -351,7 +334,7 @@ def generate_signals(df: pd.DataFrame, selected_indicators: List[str]) -> Tuple[
                     "strength": result["Signal_Sell"].iloc[i]
                 })
 
-    result["Signal_Strength_Value"] = result["Signal_Buy"] - result["Signal_Sell"] # Diferencia neta de señales
+    result["Signal_Strength_Value"] = result["Signal_Buy"] - result["Signal_Sell"]
     return result, signals
 
 
@@ -366,104 +349,109 @@ def backtesting_simple(df: pd.DataFrame, initial_capital: float = 10000.0) -> Di
     
     backtest_df = df.copy()
     capital = initial_capital
-    position = 0  # 0: sin posición, >0: número de acciones compradas
+    position_shares = 0
     entry_price = 0.0
     trades = []
-    n_trades = 0 # Contador de ciclos de compra-venta
+    n_completed_trades = 0
 
-    for i in range(1, len(backtest_df)): # Empezar desde 1 para poder mirar shift(1) si fuera necesario
-        current_datetime = backtest_df.index[i] # Usar el índice para la fecha/hora
+    for i in range(1, len(backtest_df)):
+        current_datetime = backtest_df.index[i]
         current_price = backtest_df["Price"].iloc[i]
 
-        # Decisión de Compra
-        if position == 0 and backtest_df["Signal_Buy"].iloc[i] >= 2: # Umbral de compra
-            if capital > 0 and current_price > 0: # Asegurarse de que hay capital y el precio es válido
+        if position_shares == 0 and backtest_df["Signal_Buy"].iloc[i] >= 2:
+            if capital > 0 and current_price > 0:
                 shares_to_buy = capital / current_price
-                position = shares_to_buy
+                position_shares = shares_to_buy
                 entry_price = current_price
-                capital = 0 # Todo el capital invertido
+                capital_before_buy = capital # Guardar capital antes de la compra
+                capital = 0 
                 trades.append({
                     "type": "buy",
                     "datetime": current_datetime.strftime('%Y-%m-%d %H:%M:%S') if isinstance(current_datetime, pd.Timestamp) else str(current_datetime),
                     "price": entry_price,
                     "shares": shares_to_buy,
-                    "capital_before": initial_capital if not trades else trades[-1].get("capital_after_trade", initial_capital) # Aprox
+                    "capital_involved": capital_before_buy 
                 })
-        # Decisión de Venta
-        elif position > 0 and backtest_df["Signal_Sell"].iloc[i] >= 2: # Umbral de venta
+        elif position_shares > 0 and backtest_df["Signal_Sell"].iloc[i] >= 2:
             exit_price = current_price
-            capital_after_sell = position * exit_price
+            capital_after_sell = position_shares * exit_price
             pnl_trade = ((exit_price / entry_price) - 1) * 100 if entry_price > 0 else 0
             
             trades.append({
                 "type": "sell",
                 "datetime": current_datetime.strftime('%Y-%m-%d %H:%M:%S') if isinstance(current_datetime, pd.Timestamp) else str(current_datetime),
                 "price": exit_price,
-                "shares": position,
+                "shares": position_shares,
                 "capital_after_trade": capital_after_sell,
                 "pnl_pct": pnl_trade
             })
             capital = capital_after_sell
-            position = 0
+            position_shares = 0
             entry_price = 0
-            n_trades += 1
+            n_completed_trades += 1
 
-    # Si al final del periodo hay una posición abierta, se cierra al último precio
-    if position > 0 and not backtest_df.empty:
+    if position_shares > 0 and not backtest_df.empty:
         exit_price = backtest_df["Price"].iloc[-1]
         current_datetime = backtest_df.index[-1]
-        capital_after_sell = position * exit_price
+        capital_after_sell = position_shares * exit_price
         pnl_trade = ((exit_price / entry_price) - 1) * 100 if entry_price > 0 else 0
         trades.append({
             "type": "sell (cierre final)",
             "datetime": current_datetime.strftime('%Y-%m-%d %H:%M:%S') if isinstance(current_datetime, pd.Timestamp) else str(current_datetime),
             "price": exit_price,
-            "shares": position,
+            "shares": position_shares,
             "capital_after_trade": capital_after_sell,
             "pnl_pct": pnl_trade
         })
         capital = capital_after_sell
-        n_trades +=1 # Cuenta como una operación si se cierra al final
+        n_completed_trades +=1
 
     return_pct = ((capital / initial_capital) - 1) * 100 if initial_capital > 0 else 0
-    pnl_list = [t["pnl_pct"] for t in trades if "pnl_pct" in t]
+    pnl_list = [t["pnl_pct"] for t in trades if t["type"] != "buy" and "pnl_pct" in t] # Solo pnl de ventas
     avg_pnl = np.mean(pnl_list) if pnl_list else 0
     win_rate = len([p for p in pnl_list if p > 0]) / len(pnl_list) if pnl_list else 0
 
     return {
         "final_capital": capital,
         "return_pct": return_pct,
-        "trades": n_trades, # Número de ciclos de compra-venta completados
+        "trades": n_completed_trades,
         "avg_pnl": avg_pnl,
-        "win_rate": win_rate * 100, # En porcentaje
+        "win_rate": win_rate * 100,
         "trade_history": trades
     }
 
 # --- Barra Lateral para Carga de Datos ---
 st.sidebar.header("Configuración de Datos")
 data_source = st.sidebar.radio("Fuente de Datos:", ("Subir CSV", "Descargar de Yahoo Finance"))
+uploaded_file = None # Inicializar para evitar UnboundLocalError si no se entra en la rama CSV
 
 if data_source == "Subir CSV":
     uploaded_file = st.sidebar.file_uploader("Elige un archivo CSV", type="csv")
+    print(f"DEBUG: En Subir CSV - uploaded_file (después de file_uploader): {uploaded_file}, Tipo: {type(uploaded_file)}") # DEBUG PRINT
     if uploaded_file is not None:
+        print(f"DEBUG: En Subir CSV - uploaded_file TIENE VALOR. Nombre: {getattr(uploaded_file, 'name', 'SIN ATRIBUTO NAME')}") # DEBUG PRINT
         try:
             df_temp = pd.read_csv(uploaded_file)
             st.session_state.df_data = df_temp.copy()
-            st.session_state.stock_symbol_display = uploaded_file.name.split('.')[0] # Nombre base del archivo como símbolo
+            # Usar getattr para acceder a .name de forma segura
+            file_name_for_display = getattr(uploaded_file, 'name', 'archivo_csv')
+            st.session_state.stock_symbol_display = file_name_for_display.split('.')[0]
             st.sidebar.success("¡CSV cargado con éxito!")
-            # Resetear estados dependientes
             st.session_state.df_processed = None
             st.session_state.indicators_calculated = False
             st.session_state.signals_generated = False
         except Exception as e:
+            print(f"ERROR DENTRO DEL BLOQUE 'uploaded_file is not None' (Subir CSV): {e}") # DEBUG PRINT
             st.sidebar.error(f"Error al leer el CSV: {e}")
             st.session_state.df_data = None
+    else:
+        print("DEBUG: En Subir CSV - uploaded_file es None, no se procesa.") # DEBUG PRINT
 else: # Descargar de Yahoo Finance
     default_symbol = "AAPL"
     user_symbol = st.sidebar.text_input("Símbolo de Acción (ej: AAPL, MSFT, BTC-USD)", default_symbol)
     
     today = datetime.now()
-    default_start_date = today - timedelta(days=365*2) # Por defecto 2 años atrás
+    default_start_date = today - timedelta(days=365*2)
 
     start_date = st.sidebar.date_input("Fecha de Inicio", default_start_date)
     end_date = st.sidebar.date_input("Fecha de Fin", today)
@@ -483,11 +471,11 @@ else: # Descargar de Yahoo Finance
                         st.session_state.df_data = df_temp.copy()
                         st.session_state.stock_symbol_display = user_symbol
                         st.sidebar.success(f"¡Datos para {user_symbol} descargados!")
-                        # Resetear estados dependientes
                         st.session_state.df_processed = None
                         st.session_state.indicators_calculated = False
                         st.session_state.signals_generated = False
                 except Exception as e:
+                    print(f"ERROR al descargar datos de yfinance: {e}") # DEBUG PRINT
                     st.sidebar.error(f"Error al descargar datos de yfinance: {e}")
                     st.session_state.df_data = None
         else:
@@ -498,18 +486,19 @@ else: # Descargar de Yahoo Finance
 if st.session_state.df_data is not None and st.session_state.df_processed is None:
     st.subheader("Preprocesamiento de Datos")
     with st.spinner("Procesando datos..."):
+        print("DEBUG: Iniciando bloque de preprocesamiento de datos.") # DEBUG PRINT
         df_work = st.session_state.df_data.copy()
 
-        # 1. Manejo de Fechas y Establecer Índice
         date_col_found = False
-        if isinstance(df_work.index, pd.DatetimeIndex): # Si yfinance ya puso DatetimeIndex
-            df_work.index.name = "Timestamp" # Estandarizar nombre
+        if isinstance(df_work.index, pd.DatetimeIndex):
+            df_work.index.name = "Timestamp"
             date_col_found = True
-        else: # Para CSVs
-            # Intentar encontrar columnas de fecha comunes
+            print("DEBUG: Índice ya es DatetimeIndex, renombrado a Timestamp.") # DEBUG PRINT
+        else:
             date_candidates = [col for col in df_work.columns if col.lower() in ['date', 'datetime', 'timestamp', 'fecha']]
             if date_candidates:
                 date_col_to_use = date_candidates[0]
+                print(f"DEBUG: Usando columna de fecha candidata: {date_col_to_use}") # DEBUG PRINT
                 try:
                     df_work[date_col_to_use] = pd.to_datetime(df_work[date_col_to_use])
                     df_work.set_index(date_col_to_use, inplace=True)
@@ -518,91 +507,75 @@ if st.session_state.df_data is not None and st.session_state.df_processed is Non
                     st.write(f"Columna '{date_col_to_use}' establecida como índice de tiempo.")
                 except Exception as e:
                     st.warning(f"No se pudo convertir la columna '{date_col_to_use}' a datetime o establecerla como índice: {e}")
-            else: # Si no hay columna de fecha obvia y el índice no es datetime
-                 st.warning("No se encontró una columna de fecha/datetime obvia ('Date', 'Datetime', 'Timestamp', 'Fecha'). "
-                           "Asegúrate de que tu CSV tenga una o que el índice sea de tipo datetime.")
+                    print(f"ERROR_CONVERT_DATE_COL ({date_col_to_use}): {e}") # DEBUG PRINT
+            else:
+                 st.warning("No se encontró una columna de fecha/datetime obvia.")
+                 print("DEBUG: No se encontró columna de fecha obvia en CSV.") # DEBUG PRINT
 
         if not date_col_found and not isinstance(df_work.index, pd.DatetimeIndex):
             st.error("No se pudo establecer un índice de tiempo. El análisis no puede continuar.")
+            print("ERROR: No se pudo establecer índice de tiempo.") # DEBUG PRINT
             st.stop()
         
-        # Ordenar por índice de tiempo por si acaso
         df_work.sort_index(inplace=True)
 
-        # 2. Estandarizar Columnas OHLCV y 'Price'
-        # Mapeo de nombres comunes (minúsculas) a estándar (Capitalizadas)
+        # Estandarizar Columnas OHLCV y 'Price'
         rename_map = {}
-        potential_price_cols = ['close', 'adj close', 'price', 'precio', 'valor'] # 'adj close' tiene prioridad
+        potential_price_cols = ['adj close', 'close', 'price', 'precio', 'valor'] # adj close primero
         ohlcv_map = {
-            'Open': ['open', 'apertura'],
-            'High': ['high', 'alto', 'maximo'],
-            'Low': ['low', 'bajo', 'minimo'],
-            'Volume': ['volume', 'volumen']
+            'Open': ['open', 'apertura'], 'High': ['high', 'alto', 'maximo'],
+            'Low': ['low', 'bajo', 'minimo'], 'Volume': ['volume', 'volumen']
         }
-
-        # Primero, intentar encontrar 'Adj Close' para 'Price'
-        adj_close_col = next((col for col in df_work.columns if col.lower() == 'adj close'), None)
-        if adj_close_col:
-            df_work['Price'] = df_work[adj_close_col]
-            if adj_close_col.lower() != 'price': # Evitar renombrar si ya se llama 'Price' (aunque sea en minúsculas)
-                 rename_map[adj_close_col] = 'Price' # Marcar para renombrar o simplemente usar la nueva 'Price'
-        else: # Si no hay 'Adj Close', buscar otras candidatas para 'Price'
-            price_col_found = False
-            for p_col_name in potential_price_cols:
-                actual_price_col = next((col for col in df_work.columns if col.lower() == p_col_name), None)
-                if actual_price_col:
-                    df_work['Price'] = df_work[actual_price_col] # Crear la columna 'Price'
-                    if actual_price_col.lower() != 'price':
-                         rename_map[actual_price_col] = 'Price' # Marcar para renombrar si es diferente
-                    price_col_found = True
-                    break
-            if not price_col_found and 'Price' not in df_work.columns: # Si después de todo, 'Price' no existe
-                st.error("No se pudo encontrar una columna de precio ('Close', 'Adj Close', 'Price'). El análisis no puede continuar.")
-                st.stop()
         
-        # Renombrar otras columnas OHLCV
+        # Crear columna 'Price'
+        price_col_source = None
+        for p_col_name in potential_price_cols:
+            actual_price_col = next((col for col in df_work.columns if col.lower() == p_col_name), None)
+            if actual_price_col:
+                df_work['Price'] = df_work[actual_price_col]
+                price_col_source = actual_price_col
+                print(f"DEBUG: Columna 'Price' creada desde '{actual_price_col}'.") # DEBUG PRINT
+                break
+        if 'Price' not in df_work.columns:
+            st.error("No se pudo encontrar/crear una columna de 'Price'. El análisis no puede continuar.")
+            print("ERROR: No se pudo crear la columna 'Price'.") # DEBUG PRINT
+            st.stop()
+
+        # Estandarizar otras columnas OHLCV si existen y no son la fuente de 'Price'
         for standard_name, common_names in ohlcv_map.items():
-            if standard_name not in df_work.columns and standard_name not in rename_map.values(): # No sobrescribir si ya se mapeó 'Price' desde 'Close'
+            if standard_name not in df_work.columns: # Si no existe ya con el nombre estándar
                 for common_name in common_names:
                     actual_col = next((col for col in df_work.columns if col.lower() == common_name), None)
-                    if actual_col:
-                        # df_work.rename(columns={actual_col: standard_name}, inplace=True) # Renombrar directamente
-                        # O mejor, crear las nuevas y luego seleccionar
-                        if standard_name != 'Price': # 'Price' ya se manejó
-                             df_work[standard_name] = df_work[actual_col]
+                    if actual_col and (price_col_source is None or actual_col.lower() != price_col_source.lower()):
+                        df_work[standard_name] = df_work[actual_col]
+                        print(f"DEBUG: Columna '{standard_name}' creada desde '{actual_col}'.") # DEBUG PRINT
                         break
         
-        # Seleccionar solo las columnas estándar + 'Price' (si se creó) + otras que puedan existir
-        standard_cols_present = [col for col in ['Timestamp', 'Open', 'High', 'Low', 'Price', 'Volume'] if col in df_work.columns or col == 'Timestamp'] # Timestamp es el índice
+        final_cols_to_keep = [col for col in ['Open', 'High', 'Low', 'Price', 'Volume'] if col in df_work.columns]
         
-        # Mantener otras columnas que no sean las estandarizadas ni las originales que se renombraron
-        other_cols = [col for col in df_work.columns if col not in standard_cols_present and col.lower() not in [p.lower() for p in potential_price_cols + sum(ohlcv_map.values(), [])]]
-        
-        df_final_cols = [col for col in ['Open', 'High', 'Low', 'Price', 'Volume'] if col in df_work.columns] # Columnas OHLCV+Price que realmente existen
-        
-        # df_work = df_work[df_final_cols + other_cols] # Esto podría perder el índice si no se maneja con cuidado
-        # Es mejor asegurarse de que las columnas 'Open', 'High', 'Low', 'Price', 'Volume' existan con esos nombres.
-        # Las funciones de indicadores las buscarán así.
-
-        # 3. Manejo de Nulos (después de reestructurar columnas)
-        if df_work[df_final_cols].isnull().values.any():
+        # Manejo de Nulos
+        if df_work[final_cols_to_keep].isnull().values.any():
             st.write("Valores nulos encontrados. Aplicando forward fill (ffill) y luego backward fill (bfill).")
-            for col in df_final_cols: # Aplicar solo a las columnas relevantes
+            print("DEBUG: Llenando NaNs.") # DEBUG PRINT
+            for col in final_cols_to_keep:
                 if df_work[col].isnull().any():
                     df_work[col].ffill(inplace=True)
                     df_work[col].bfill(inplace=True)
         
-        # Verificar si aún hay nulos después del llenado (podría indicar columnas enteras de NaN)
-        if df_work[df_final_cols].isnull().values.any():
-            st.warning("Aún existen valores nulos después del llenado. Considere revisar sus datos. Se eliminarán filas con NaNs en columnas OHLCV/Price.")
-            df_work.dropna(subset=df_final_cols, inplace=True)
+        if df_work[final_cols_to_keep].isnull().values.any():
+            st.warning("Aún existen valores nulos después del llenado. Se eliminarán filas con NaNs en columnas OHLCV/Price.")
+            print("DEBUG: Eliminando filas con NaNs restantes.") # DEBUG PRINT
+            df_work.dropna(subset=final_cols_to_keep, inplace=True)
 
         if df_work.empty:
             st.error("El DataFrame está vacío después del preprocesamiento. No se puede continuar.")
+            print("ERROR: DataFrame vacío post-preprocesamiento.") # DEBUG PRINT
             st.stop()
 
-        st.session_state.df_processed = df_work.copy()
+        st.session_state.df_processed = df_work.copy() # Guardar solo el df procesado
         st.success("¡Datos preprocesados con éxito!")
+        print("DEBUG: Preprocesamiento de datos completado.")
+
 
 # --- Mostrar Datos y Gráfico Principal si están procesados ---
 if st.session_state.df_processed is not None:
@@ -616,8 +589,10 @@ if st.session_state.df_processed is not None:
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(f"Error al generar el gráfico de precios: {e}")
+            print(f"ERROR_PLOT_PRICE: {e}") # DEBUG PRINT
     else:
         st.warning("No se encontró la columna 'Price' en los datos procesados para graficar.")
+        print("WARNING: No se encontró 'Price' para graficar.") # DEBUG PRINT
 
     # --- Sección de Análisis Técnico ---
     st.header("Análisis Técnico")
@@ -625,11 +600,10 @@ if st.session_state.df_processed is not None:
     expander_indicators = st.expander("Calcular Indicadores Técnicos", expanded=False)
     with expander_indicators:
         available_indicators = ["MACD", "RSI", "Bollinger Bands", "Stochastic", "Moving Averages"]
-        # Usar una clave única para el multiselect si hay varios
         selected_indicators = st.multiselect(
             "Elige los indicadores a calcular:",
             available_indicators,
-            default=["RSI", "MACD"], # Algunos por defecto
+            default=["RSI", "MACD"],
             key="indicator_selector"
         )
 
@@ -638,35 +612,38 @@ if st.session_state.df_processed is not None:
                 st.warning("Por favor, selecciona al menos un indicador.")
             else:
                 with st.spinner("Calculando indicadores..."):
-                    st.session_state.df_processed = calculate_indicators(st.session_state.df_processed, selected_indicators)
+                    # Usar una copia para la función, luego reasignar a session_state
+                    df_temp_for_calc = st.session_state.df_processed.copy()
+                    df_with_indicators = calculate_indicators(df_temp_for_calc, selected_indicators)
+                    st.session_state.df_processed = df_with_indicators # Actualizar el df en session_state
                     st.session_state.indicators_calculated = True
-                    st.session_state.signals_generated = False # Resetear si se recalculan indicadores
+                    st.session_state.signals_generated = False 
                 st.success("¡Indicadores calculados!")
-                st.dataframe(st.session_state.df_processed.tail()) # Mostrar cola para ver indicadores recientes
+                st.dataframe(st.session_state.df_processed.tail())
 
     if st.session_state.indicators_calculated:
         expander_signals = st.expander("Generar Señales de Trading", expanded=False)
         with expander_signals:
             if st.button("2. Generar Señales", key="gen_sig_btn"):
                 with st.spinner("Generando señales..."):
-                    # Asegurarse de que selected_indicators esté disponible aquí, si es necesario para generate_signals
-                    # Si generate_signals depende de los indicadores que ACABAN de ser seleccionados y calculados:
-                    current_selected_indicators = st.session_state.get("indicator_selector", []) # Obtener la selección actual
+                    current_selected_indicators = st.session_state.get("indicator_selector", [])
                     
-                    df_with_signals, signals_summary = generate_signals(st.session_state.df_processed, current_selected_indicators)
-                    st.session_state.df_processed = df_with_signals # Actualizar el df con las señales
+                    # Usar una copia para la función, luego reasignar a session_state
+                    df_temp_for_signals = st.session_state.df_processed.copy()
+                    df_with_signals, signals_summary = generate_signals(df_temp_for_signals, current_selected_indicators)
+                    st.session_state.df_processed = df_with_signals # Actualizar el df en session_state
                     st.session_state.signals_generated = True
                 st.success("¡Señales generadas!")
                 st.subheader("Resumen de Señales (Último Dato):")
                 
-                # Formatear el resumen de señales para mejor visualización
                 if signals_summary.get("summary"):
                     for k, v in signals_summary["summary"].items():
                         st.markdown(f"**{k}:** {v}")
                 st.markdown(f"**Fuerza General de la Señal (último dato):** `{signals_summary.get('strength', 'N/A')}%`")
                 
                 st.subheader("Datos con Columnas de Señal (Últimos 5 Días):")
-                st.dataframe(st.session_state.df_processed[['Price', 'Signal_Buy', 'Signal_Sell', 'Signal_Strength_Value']].tail())
+                cols_to_show_signals = ['Price'] + [col for col in ['Signal_Buy', 'Signal_Sell', 'Signal_Strength_Value'] if col in st.session_state.df_processed.columns]
+                st.dataframe(st.session_state.df_processed[cols_to_show_signals].tail())
 
 
     expander_patterns = st.expander("Identificar Patrones de Velas", expanded=False)
@@ -675,18 +652,17 @@ if st.session_state.df_processed is not None:
             if st.session_state.df_processed is not None and \
                all(col in st.session_state.df_processed.columns for col in ["Open", "High", "Low", "Price"]):
                 with st.spinner("Identificando patrones..."):
-                    patterns = identify_patterns(st.session_state.df_processed)
+                    patterns = identify_patterns(st.session_state.df_processed) # Usa el df de session_state directamente (es una copia)
                 st.success("¡Patrones identificados!")
                 if patterns["bullish"] or patterns["bearish"]:
                     st.write("Patrones Alcistas Recientes:")
-                    st.json(patterns["bullish"][-5:]) # Mostrar los últimos 5 encontrados
+                    st.json(patterns["bullish"][-5:])
                     st.write("Patrones Bajistas Recientes:")
-                    st.json(patterns["bearish"][-5:]) # Mostrar los últimos 5 encontrados
+                    st.json(patterns["bearish"][-5:])
                 else:
                     st.info("No se identificaron patrones con la lógica actual en los datos recientes.")
             else:
-                st.warning("Se necesitan columnas 'Open', 'High', 'Low', 'Price' para identificar patrones. "
-                           "Asegúrate de que los datos estén cargados y procesados.")
+                st.warning("Se necesitan columnas 'Open', 'High', 'Low', 'Price' para identificar patrones.")
 
 
     if st.session_state.signals_generated:
@@ -695,6 +671,7 @@ if st.session_state.df_processed is not None:
             initial_capital_bt = st.number_input("Capital Inicial para Backtesting:", min_value=100.0, value=10000.0, step=1000.0)
             if st.button("3. Ejecutar Backtesting", key="run_bt_btn"):
                 with st.spinner("Ejecutando backtest..."):
+                    # Usa el df de session_state directamente (es una copia)
                     backtest_results = backtesting_simple(st.session_state.df_processed, initial_capital_bt)
                 
                 st.subheader("Resultados del Backtesting")
@@ -711,29 +688,28 @@ if st.session_state.df_processed is not None:
                     col5.metric("Tasa de Acierto (Win Rate)", f"{backtest_results['win_rate']:.2f}%")
 
                     st.subheader("Historial de Operaciones")
-                    # Convertir historial a DataFrame para mejor visualización
                     if backtest_results['trade_history']:
                         df_history = pd.DataFrame(backtest_results['trade_history'])
-                        # Formatear columnas si es necesario, por ejemplo, datetime
-                        df_history['datetime'] = pd.to_datetime(df_history['datetime'])
+                        if 'datetime' in df_history.columns:
+                             df_history['datetime'] = pd.to_datetime(df_history['datetime'])
                         st.dataframe(df_history)
                         
-                        # Gráfico de evolución del capital (simple)
-                        capital_over_time = [initial_capital_bt] + [trade['capital_after_trade'] for trade in backtest_results['trade_history'] if 'capital_after_trade' in trade and trade['type'] != 'buy']
-                        trade_dates = [st.session_state.df_processed.index[0]] + [pd.to_datetime(trade['datetime']) for trade in backtest_results['trade_history'] if 'capital_after_trade' in trade and trade['type'] != 'buy']
+                        capital_over_time = [initial_capital_bt] + [trade['capital_after_trade'] for trade in backtest_results['trade_history'] if 'capital_after_trade' in trade and trade.get('type','').lower() != 'buy']
+                        trade_dates_valid = [st.session_state.df_processed.index[0]] + \
+                                            [pd.to_datetime(trade['datetime']) for trade in backtest_results['trade_history'] if 'capital_after_trade' in trade and trade.get('type','').lower() != 'buy' and 'datetime' in trade]
                         
-                        if len(trade_dates) == len(capital_over_time) and len(trade_dates) > 1:
-                            df_capital_plot = pd.DataFrame({'Timestamp': trade_dates, 'Capital': capital_over_time}).set_index('Timestamp')
+                        if len(trade_dates_valid) == len(capital_over_time) and len(trade_dates_valid) > 1:
+                            df_capital_plot = pd.DataFrame({'Timestamp': trade_dates_valid, 'Capital': capital_over_time}).set_index('Timestamp')
                             fig_capital = px.line(df_capital_plot, y="Capital", title="Evolución del Capital (Estimado Post-Venta)")
                             st.plotly_chart(fig_capital, use_container_width=True)
                         else:
                              st.info("No hay suficientes datos de operaciones de venta para graficar la evolución del capital.")
-
                     else:
                         st.info("No se realizaron operaciones en el backtest.")
-
 else:
+    print("DEBUG: df_processed es None, mostrando mensaje para cargar datos.") # DEBUG PRINT
     st.info("⬅️ Por favor, carga un archivo CSV o descarga datos usando la barra lateral para comenzar.")
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("Construido con Streamlit y cariño por la IA y tú.")
+st.sidebar.markdown("App mejorada con la ayuda de IA.")
+print("DEBUG: Fin del script.") # DEBUG PRINT
