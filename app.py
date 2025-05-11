@@ -19,8 +19,8 @@ st.write("Please upload a CSV file containing historical price data or select a 
 
 # Opción para cargar un archivo CSV
 uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
-if uploaded_file is not None:
-    file_name = uploaded_file.name 
+
+file_name = uploaded_file.name 
 
 stock_symbol = file_name
 
