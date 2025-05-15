@@ -39,7 +39,7 @@ if uploaded_file is not None:
         data_orig = pd.read_csv(uploaded_file)
         data = data_orig.copy()
 
-        required_columns = ["Date", "Price", "Open", "High", "Low"]
+        required_columns = ["Date", "Price", "Open", "High", "Low","Change %"]
         if not all(col in data.columns for col in required_columns):
             st.error(f"El archivo CSV debe contener las columnas: {', '.join(required_columns)}")
         else:
