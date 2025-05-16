@@ -55,7 +55,7 @@ elif opcion == "Predicción de Precios":
 
         # Gráfico comparativo
         st.subheader("Gráfico de Predicción")
-        fechas = df["date"]
+        fechas = df.index
         precios = df["price"]
         plt.figure(figsize=(10, 4))
         plt.plot(fechas, precios, label="Histórico")
