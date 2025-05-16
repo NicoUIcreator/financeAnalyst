@@ -70,15 +70,21 @@ def limpiar_dataframe(df):
 
     # Volumen con K/M
     def convertir_volumen(val):
-        val = val.replace(",", "").upper()
-        if "K" in val:
-            return float(val.replace("K", "")) * 1_000
-        elif "M" in val:
-            return float(val.replace("M", "")) * 1_000_000
-        else:
-            return float(val)
+        try:
+            val = val.replace(",", "").upper()
+            if "K" in val:
+                return float(val.replace("K", "")) * 1_000
+            elif "M" in val:
+                return float(val.replace("M", "")) * 1_000_000
+            elif "B" in val:
+                return float(val.replace("B", "")) * 1_000_000_000
+            else:
+                return float(val)
+        except Exception:
+            return np.nan  # o 0 si prefieres evitar NaN
+
     
-    df["vol"] = df["vol"].astype(str).apply(lambda x: convertir_volumen(x) if x != '' else 0)
+    df["vol"] = df["vol"].astype(str).apply(convertir_volumen)
 
     # Cambio porcentual
     df["changepct"] = df["changepct"].str.replace("%", "").str.replace(",", ".")
