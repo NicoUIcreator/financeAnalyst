@@ -31,7 +31,7 @@ if opcion == "Exploración de Datos":
         # Gráfico de líneas
         st.subheader("Gráfico de Precio a lo Largo del Tiempo")
         plt.figure(figsize=(10, 4))
-        sns.lineplot(data=df, x="date", y="price")
+        sns.lineplot(data=df, x=df.index, y="price")
         plt.xticks(rotation=45)
         st.pyplot(plt)
 

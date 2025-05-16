@@ -15,7 +15,7 @@ def cargar_datos(archivo):
     return df
 
 def entrenar_modelo(df):
-    datos = df["Price"].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False).astype(float).values.reshape(-1, 1)
+    datos = df["price"].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False).astype(float).values.reshape(-1, 1)
     scaler = MinMaxScaler()
     datos_escalados = scaler.fit_transform(datos)
 
@@ -54,21 +54,21 @@ def predecir_precio(df, modelo, scaler):
     return precio_actual, precio_predicho, cambio_pct
 
 def limpiar_dataframe(df):
-    # Renombrar columnas
+    # 1. Renombrar columnas a formato estándar
     df.columns = [col.strip().lower().replace(" ", "").replace("%", "pct").replace(".", "") for col in df.columns]
 
-    # Parsear fechas
+    # 2. Parsear fechas y establecer como índice
     df["date"] = pd.to_datetime(df["date"], dayfirst=True, errors="coerce")
     df.dropna(subset=["date"], inplace=True)
-    df.sort_values("date", inplace=True)
+    df = df.sort_values("date").set_index("date")
 
-    # Columnas numéricas con coma decimal y punto de miles
+    # 3. Columnas numéricas con coma decimal y punto de miles
     columnas_numericas = ["price", "open", "high", "low"]
     for col in columnas_numericas:
         df[col] = df[col].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Volumen con K/M
+    # 4. Limpiar volumen (vol) con K/M/B
     def convertir_volumen(val):
         try:
             val = val.replace(",", "").upper()
@@ -80,17 +80,16 @@ def limpiar_dataframe(df):
                 return float(val.replace("B", "")) * 1_000_000_000
             else:
                 return float(val)
-        except Exception:
-            return np.nan  # o 0 si prefieres evitar NaN
+        except:
+            return np.nan
 
-    
     df["vol"] = df["vol"].astype(str).apply(convertir_volumen)
 
-    # Cambio porcentual
-    df["changepct"] = df["changepct"].str.replace("%", "").str.replace(",", ".")
+    # 5. Limpiar cambio porcentual
+    df["changepct"] = df["changepct"].astype(str).str.replace("%", "").str.replace(",", ".")
     df["changepct"] = pd.to_numeric(df["changepct"], errors="coerce")
 
-    # Reset index y eliminar nulos remanentes
-    df = df.dropna().reset_index(drop=True)
+    # 6. Eliminar registros con valores faltantes
+    df = df.dropna()
 
     return df
