@@ -42,7 +42,7 @@ def entrenar_modelo(df):
     return modelo, scaler
 
 def predecir_precio(df, modelo, scaler):
-    datos = df["Price"].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False).astype(float).values.reshape(-1, 1)
+    datos = df["price"].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False).astype(float).values.reshape(-1, 1)
     datos_escalados = scaler.transform(datos)
     secuencia = 30
     ultima_secuencia = datos_escalados[-secuencia:]
