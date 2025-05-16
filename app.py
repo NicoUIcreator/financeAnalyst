@@ -22,10 +22,14 @@ if opcion == "Exploración de Datos":
 
         st.subheader("Vista Previa de los Datos")
         st.dataframe(df.head())
+        
+
 
         st.subheader("Gráfico de Precio a lo Largo del Tiempo")
+        st.write(df[["date", "price"]].dtypes)
+        st.write(df[["date", "price"]].head())
         plt.figure(figsize=(10, 4))
-        sns.lineplot(data=df, x="Date", y="Price")
+        sns.lineplot(data=df, x="date", y="price")
         plt.xticks(rotation=45)
         st.pyplot(plt)
 
