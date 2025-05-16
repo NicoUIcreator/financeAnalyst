@@ -11,3 +11,5 @@ pandas_ta
 matplotlib
 tensorflow
 lightweight-charts
+seaborn
+joblib
