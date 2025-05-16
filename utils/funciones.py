@@ -52,3 +52,39 @@ def predecir_precio(df, modelo, scaler):
     precio_actual = datos[-1][0]
     cambio_pct = ((precio_predicho - precio_actual) / precio_actual) * 100
     return precio_actual, precio_predicho, cambio_pct
+
+def limpiar_dataframe(df):
+    # Renombrar columnas
+    df.columns = [col.strip().lower().replace(" ", "").replace("%", "pct").replace(".", "") for col in df.columns]
+
+    # Parsear fechas
+    df["date"] = pd.to_datetime(df["date"], dayfirst=True, errors="coerce")
+    df.dropna(subset=["date"], inplace=True)
+    df.sort_values("date", inplace=True)
+
+    # Columnas numéricas con coma decimal y punto de miles
+    columnas_numericas = ["price", "open", "high", "low"]
+    for col in columnas_numericas:
+        df[col] = df[col].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Volumen con K/M
+    def convertir_volumen(val):
+        val = val.replace(",", "").upper()
+        if "K" in val:
+            return float(val.replace("K", "")) * 1_000
+        elif "M" in val:
+            return float(val.replace("M", "")) * 1_000_000
+        else:
+            return float(val)
+    
+    df["vol"] = df["vol"].astype(str).apply(lambda x: convertir_volumen(x) if x != '' else 0)
+
+    # Cambio porcentual
+    df["changepct"] = df["changepct"].str.replace("%", "").str.replace(",", ".")
+    df["changepct"] = pd.to_numeric(df["changepct"], errors="coerce")
+
+    # Reset index y eliminar nulos remanentes
+    df = df.dropna().reset_index(drop=True)
+
+    return df

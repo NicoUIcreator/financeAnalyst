@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from utils.funciones import cargar_datos, entrenar_modelo, predecir_precio
+from utils.funciones import cargar_datos, entrenar_modelo, predecir_precio, limpiar_dataframe
 
 # Configuración de la página
 st.set_page_config(page_title="Predicción BTC-USD", layout="wide")
@@ -18,6 +18,8 @@ if opcion == "Exploración de Datos":
 
     if archivo is not None:
         df = cargar_datos(archivo)
+        df = limpiar_dataframe(df)
+
         st.subheader("Vista Previa de los Datos")
         st.dataframe(df.head())
 
