@@ -9,3 +9,5 @@ torch==2.0.1
 plotly==5.18.0
 pandas_ta
 matplotlib
+tensorflow
+lightweight-charts
