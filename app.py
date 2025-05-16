@@ -58,7 +58,7 @@ if uploaded_file is not None:
             st.dataframe(df.tail())
 
             # Preparación de los datos para el modelo
-            data = df["price"].astype(str).str.replace(",", ".").astype(float).values.reshape(-1, 1)
+            data = df["price"].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False).astype(float).values.reshape(-1, 1)
             scaler = MinMaxScaler()
             scaled_data = scaler.fit_transform(data)
 
