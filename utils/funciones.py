@@ -3,10 +3,15 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
+import os
 
 
 def cargar_datos(archivo):
     return pd.read_csv(archivo)
+
+
+def listar_bases_de_datos(directorio="data"):
+    return [f for f in os.listdir(directorio) if f.endswith(".csv")]
 
 
 def limpiar_binance_csv(df):
@@ -56,17 +61,27 @@ def entrenar_modelo(df):
     modelo.compile(optimizer='adam', loss='mean_squared_error')
     modelo.fit(X, y, epochs=5, batch_size=32, verbose=0)
 
-    return modelo, scaler
+    return modelo, scaler, X_test := X[-30:], y_test := y[-30:]
 
 
-def predecir_precio(df, modelo, scaler):
+def predecir_precio(df, modelo, scaler, dias=1):
     datos = df["price"].values.reshape(-1, 1)
     datos_escalados = scaler.transform(datos)
     secuencia = 30
-    ultima_secuencia = datos_escalados[-secuencia:]
-    ultima_secuencia = np.expand_dims(ultima_secuencia, axis=0)
-    prediccion = modelo.predict(ultima_secuencia)
-    precio_predicho = scaler.inverse_transform(prediccion)[0][0]
-    precio_actual = datos[-1][0]
-    cambio_pct = ((precio_predicho - precio_actual) / precio_actual) * 100
-    return precio_actual, precio_predicho, cambio_pct
+    entrada = datos_escalados[-secuencia:].copy()
+
+    predicciones = []
+    for _ in range(dias):
+        entrada_reshaped = np.expand_dims(entrada, axis=0)
+        pred = model.predict(entrada_reshaped)
+        predicciones.append(pred[0][0])
+        entrada = np.vstack([entrada[1:], pred])
+
+    predicciones = scaler.inverse_transform(np.array(predicciones).reshape(-1, 1)).flatten()
+    return predicciones
+
+
+def calcular_accuracy(y_true, y_pred):
+    from sklearn.metrics import mean_absolute_error
+    mae = mean_absolute_error(y_true, y_pred)
+    return 100 - (mae / np.mean(y_true) * 100)

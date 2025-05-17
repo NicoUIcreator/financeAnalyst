@@ -1,65 +1,61 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
-from utils.funciones import cargar_datos, entrenar_modelo, predecir_precio , limpiar_binance_csv
+from utils.funciones import (
+    listar_bases_de_datos,
+    cargar_datos,
+    limpiar_binance_csv,
+    entrenar_modelo,
+    predecir_precio,
+    calcular_accuracy
+)
 
-# Configuración de la página
-st.set_page_config(page_title="Predicción BTC-USD", layout="wide")
+st.set_page_config(page_title="Predicción BTC", layout="wide")
 
-# Barra lateral de navegación
-st.sidebar.title("Navegación")
-opcion = st.sidebar.radio("Ir a", ["Exploración de Datos", "Predicción de Precios"])
+st.title("📈 Predicción de Precio de BTC")
 
-# Sección 1: Exploración de datos
-if opcion == "Exploración de Datos":
-    st.title("📊 Exploración de Datos BTC-USD")
-    archivo = st.file_uploader("Sube tu archivo CSV", type="csv")
+# Selección de base de datos desde la carpeta data
+st.sidebar.header("Base de datos")
+bases = listar_bases_de_datos()
+archivo_seleccionado = st.sidebar.selectbox("Selecciona un archivo de /data", bases)
 
-    if archivo is not None:
-        # Cargar y limpiar datos
-        df = cargar_datos(archivo)
-        df = limpiar_binance_csv(df)
+if archivo_seleccionado:
+    df = cargar_datos(f"data/{archivo_seleccionado}")
+    df = limpiar_binance_csv(df)
 
-        # Mostrar nombres de columnas para depuración
-        st.write("Columnas del DataFrame:", df.columns.tolist())
+    st.subheader("Vista previa de los datos")
+    st.dataframe(df.tail())
 
-        # Vista previa de datos
-        st.subheader("Vista Previa de los Datos")
-        st.dataframe(df.head())
+    st.subheader("Gráfico de precios históricos")
+    plt.figure(figsize=(12, 4))
+    plt.plot(df.index, df["price"], label="Histórico")
+    plt.title("Precio BTC")
+    plt.xticks(rotation=45)
+    plt.legend()
+    st.pyplot(plt)
 
-        # Gráfico de líneas
-        st.subheader("Gráfico de Precio a lo Largo del Tiempo")
-        plt.figure(figsize=(10, 4))
-        sns.lineplot(data=df, x=df.index, y="price")
-        plt.xticks(rotation=45)
-        st.pyplot(plt)
+    # Entrenamiento y predicción
+    modelo, scaler, X_test, y_test = entrenar_modelo(df)
+    pred_30 = predecir_precio(df, modelo, scaler, dias=30)
+    pred_90 = predecir_precio(df, modelo, scaler, dias=90)
 
-# Sección 2: Predicción de precios
-elif opcion == "Predicción de Precios":
-    st.title("🤖 Predicción de Precio BTC-USD")
-    archivo = st.file_uploader("Sube tu archivo CSV", type="csv")
+    # Accuracy
+    ultimos_reales = df["price"].values[-30:]
+    y_pred_test = modelo.predict(X_test)
+    y_pred_test_inv = scaler.inverse_transform(y_pred_test).flatten()
+    acc = calcular_accuracy(ultimos_reales, y_pred_test_inv)
 
-    if archivo is not None:
-        df = cargar_datos(archivo)
-        df = limpiar_binance_csv(df)
+    st.subheader("Predicción")
+    st.write(f"🔮 Accuracy estimada sobre últimos datos reales: {acc:.2f}%")
 
-        # Entrenamiento del modelo y predicción
-        modelo, scaler = entrenar_modelo(df)
-        precio_actual, precio_predicho, cambio_pct = predecir_precio(df, modelo, scaler)
+    fechas_futuras_30 = pd.date_range(df.index[-1], periods=31, freq='D')[1:]
+    fechas_futuras_90 = pd.date_range(df.index[-1], periods=91, freq='D')[1:]
 
-        st.subheader("Resultado de la Predicción")
-        st.write(f"📉 Precio actual: ${precio_actual:,.2f}")
-        st.write(f"📈 Precio predicho: ${precio_predicho:,.2f}")
-        st.write(f"📊 Cambio porcentual esperado: {cambio_pct:.2f}%")
-
-        # Gráfico comparativo
-        st.subheader("Gráfico de Predicción")
-        fechas = df.index
-        precios = df["price"]
-        plt.figure(figsize=(10, 4))
-        plt.plot(fechas, precios, label="Histórico")
-        plt.plot(fechas.iloc[-1] + pd.Timedelta(days=1), precio_predicho, 'ro', label="Predicción")
-        plt.xticks(rotation=45)
-        plt.legend()
-        st.pyplot(plt)
+    plt.figure(figsize=(12, 4))
+    plt.plot(df.index, df["price"], label="Histórico")
+    plt.plot(fechas_futuras_30, pred_30, label="Predicción 30 días")
+    plt.plot(fechas_futuras_90, pred_90, label="Predicción 90 días", linestyle='--')
+    plt.title("Predicción futura del precio BTC")
+    plt.xticks(rotation=45)
+    plt.legend()
+    st.pyplot(plt)
