@@ -32,13 +32,6 @@ def limpiar_binance_csv(df):
 
     df = df.rename(columns={col: rename_map[col] for col in df.columns if col in rename_map})
 
-    if "date" not in df.columns:
-        posibles_fechas = [col for col in df.columns if "date" in col or "fecha" in col]
-        if posibles_fechas:
-            df = df.rename(columns={posibles_fechas[0]: "date"})
-        else:
-            raise ValueError("No se encontró una columna de fecha válida en el archivo CSV.")
-
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df.dropna(subset=["date"], inplace=True)
     df = df.sort_values("date")
