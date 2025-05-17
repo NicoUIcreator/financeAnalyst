@@ -18,8 +18,6 @@ def listar_bases_de_datos(directorio="data"):
 
 
 def limpiar_binance_csv(df):
-    df.columns = [c.strip().lower().replace(" ", "").replace("%", "pct").replace(".", "") for c in df.columns]
-
     rename_map = {
         "Date": "date",
         "Price": "price",
@@ -31,11 +29,16 @@ def limpiar_binance_csv(df):
     }
 
     df = df.rename(columns={col: rename_map[col] for col in df.columns if col in rename_map})
-
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df.dropna(subset=["date"], inplace=True)
     df = df.sort_values("date")
     df.set_index("date", inplace=True)
+
+    df.columns = [c.strip().lower().replace(" ", "").replace("%", "pct").replace(".", "") for c in df.columns]
+
+    
+
+    
 
     columnas_necesarias = ["price", "open", "high", "low", "vol", "changepct"]
     for col in columnas_necesarias:
