@@ -19,6 +19,10 @@ st.sidebar.header("Base de datos")
 bases = listar_bases_de_datos()
 archivo_seleccionado = st.sidebar.selectbox("Selecciona un archivo de /data", bases)
 
+# Selección de modelo
+st.sidebar.header("Modelo de predicción")
+modelo_tipo = st.sidebar.selectbox("Selecciona el modelo", ["lstm", "xgboost", "linear"])
+
 if archivo_seleccionado:
     df = cargar_datos(f"data/{archivo_seleccionado}")
     df = limpiar_binance_csv(df)
@@ -35,14 +39,16 @@ if archivo_seleccionado:
     st.pyplot(plt)
 
     # Entrenamiento y predicción
-    modelo, scaler, X_test, y_test = entrenar_modelo(df)
-    pred_30 = predecir_precio(df, modelo, scaler, dias=30)
-    pred_90 = predecir_precio(df, modelo, scaler, dias=90)
+    modelo, scaler, X_test, y_test = entrenar_modelo(df, modelo_tipo=modelo_tipo)
+    pred_30 = predecir_precio(df, modelo, scaler, dias=30, modelo_tipo=modelo_tipo)
+    pred_90 = predecir_precio(df, modelo, scaler, dias=90, modelo_tipo=modelo_tipo)
 
     # Accuracy
-    ultimos_reales = df["price"].values[-30:]
     y_pred_test = modelo.predict(X_test)
+    if modelo_tipo != "lstm":
+        y_pred_test = y_pred_test.reshape(-1, 1)
     y_pred_test_inv = scaler.inverse_transform(y_pred_test).flatten()
+    ultimos_reales = df["price"].values[-30:]
     acc = calcular_accuracy(ultimos_reales, y_pred_test_inv)
 
     st.subheader("Predicción")
