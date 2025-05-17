@@ -9,34 +9,32 @@ def cargar_datos(archivo):
     return pd.read_csv(archivo)
 
 
-def limpiar_dataframe(df):
-    # Renombrar columnas en formato consistente
-    df.columns = [col.strip().lower().replace(" ", "").replace("%", "pct").replace(".", "") for col in df.columns]
+def limpiar_binance_csv(df):
+    # Renombrar columnas desde inglés con símbolos a nombres estándar
+    df = df.rename(columns={
+        "Date": "date",
+        "Price": "price",
+        "Open": "open",
+        "High": "high",
+        "Low": "low",
+        "Vol.": "vol",
+        "Change %": "changepct"
+    })
 
-    # Asegurar existencia de columnas necesarias
-    required_cols = ["date", "price", "open", "high", "low", "vol", "changepct"]
-    if not all(col in df.columns for col in required_cols):
-        raise ValueError(f"Faltan columnas necesarias. Columnas actuales: {df.columns.tolist()}")
-
-    # Parsear fechas y ordenar
-    df["date"] = pd.to_datetime(df["date"], dayfirst=True, errors="coerce")
+    # Convertir fechas y ordenar
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df.dropna(subset=["date"], inplace=True)
     df = df.sort_values("date").set_index("date")
 
-    # Limpieza rápida de texto (coma, %, K, M, B)
-    for col in ["price", "open", "high", "low", "vol", "changepct"]:
-        df[col] = (
-            df[col]
-            .astype(str)
-            .replace({",": "", "%": "", "M": "0000", "K": "0", "B": "0000000"}, regex=True)
-        )
+    # Limpiar valores numéricos usando el método comprobado
+    df = df[["price", "open", "high", "low", "vol", "changepct"]]
+    df = df.replace(to_replace=(",|%"), value="", regex=True)
+    df = df.replace(to_replace="M", value="0000", regex=True)
+    df = df.replace(to_replace="K", value="0", regex=True)
+    df = df.replace(to_replace="B", value="0000000", regex=True)
+    df = df.astype(float)
 
-    # Convertir a float
-    for col in ["price", "open", "high", "low", "vol", "changepct"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    df = df.dropna()
-    return df
+    return df.dropna()
 
 
 def entrenar_modelo(df):
