@@ -18,25 +18,45 @@ def listar_bases_de_datos(directorio="data"):
 
 
 def limpiar_binance_csv(df):
-    df = df.rename(columns={
-        "Date": "date",
-        "Price": "price",
-        "Open": "open",
-        "High": "high",
-        "Low": "low",
-        "Vol.": "vol",
-        "Change %": "changepct"
-    })
+    # Normalizar nombres de columnas
+    df.columns = [c.strip().lower().replace(" ", "").replace("%", "pct").replace(".", "") for c in df.columns]
+
+    # Mapeo a nombres estándar
+    rename_map = {
+        "date": "date",
+        "ultimo": "price",
+        "price": "price",
+        "open": "open",
+        "apertura": "open",
+        "high": "high",
+        "máximo": "high",
+        "low": "low",
+        "mínimo": "low",
+        "vol": "vol",
+        "volumen": "vol",
+        "changepct": "changepct",
+        "variacion": "changepct"
+    }
+
+    df = df.rename(columns={col: rename_map[col] for col in df.columns if col in rename_map})
+
+    if "date" not in df.columns:
+        raise ValueError("No se encontró una columna de fecha válida en el archivo CSV.")
+
+    # Procesar fechas
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df.dropna(subset=["date"], inplace=True)
     df = df.sort_values("date").set_index("date")
+
+    # Limpiar y convertir columnas numéricas
     df = df[["price", "open", "high", "low", "vol", "changepct"]]
-    df = df.replace(to_replace=",|%", value="", regex=True)
-    df = df.replace(to_replace="M", value="0000", regex=True)
-    df = df.replace(to_replace="K", value="0", regex=True)
-    df = df.replace(to_replace="B", value="0000000", regex=True)
+    df = df.replace(to_replace=r",|%", value="", regex=True)
+    df = df.replace({"M": "0000", "K": "0", "B": "0000000"}, regex=True)
+    df["changepct"] = df["changepct"].astype(str).str.replace(",", ".")
     df = df.astype(float)
+
     return df.dropna()
+
 
 
 def entrenar_modelo(df, modelo_tipo="lstm"):
