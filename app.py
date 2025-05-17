@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from utils.funciones import cargar_datos, limpiar_dataframe, entrenar_modelo, predecir_precio
+from utils.funciones import cargar_datos, entrenar_modelo, predecir_precio , limpiar_binance_csv
 
 # Configuración de la página
 st.set_page_config(page_title="Predicción BTC-USD", layout="wide")
@@ -19,7 +19,7 @@ if opcion == "Exploración de Datos":
     if archivo is not None:
         # Cargar y limpiar datos
         df = cargar_datos(archivo)
-        df = limpiar_dataframe(df)
+        df = limpiar_binance_csv(df)
 
         # Mostrar nombres de columnas para depuración
         st.write("Columnas del DataFrame:", df.columns.tolist())
@@ -42,7 +42,7 @@ elif opcion == "Predicción de Precios":
 
     if archivo is not None:
         df = cargar_datos(archivo)
-        df = limpiar_dataframe(df)
+        df = limpiar_binance_csv(df)
 
         # Entrenamiento del modelo y predicción
         modelo, scaler = entrenar_modelo(df)
