@@ -13,3 +13,4 @@ tensorflow
 lightweight-charts
 seaborn
 joblib
+fpdf
