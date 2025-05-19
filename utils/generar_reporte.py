@@ -1,12 +1,10 @@
 from fpdf import FPDF
 import matplotlib.pyplot as plt
-import os
 
 def generar_reporte_pdf(df, pred_30, pred_90, modelo_tipo, accuracy):
-    # Crear carpeta si no existe
-    os.makedirs("/mnt/data", exist_ok=True)
+    # Guardar gráfico temporal (sin crear manualmente la carpeta)
+    graph_path = "/mnt/data/prediccion_btc.png"
 
-    # Guardar gráfico temporal
     plt.figure(figsize=(10, 4))
     plt.plot(df.index, df["price"], label="Histórico")
     plt.plot(pred_30.index, pred_30.values, label="Predicción 30 días")
@@ -15,8 +13,6 @@ def generar_reporte_pdf(df, pred_30, pred_90, modelo_tipo, accuracy):
     plt.legend()
     plt.xticks(rotation=45)
     plt.tight_layout()
-
-    graph_path = "/mnt/data/prediccion_btc.png"
     plt.savefig(graph_path)
     plt.close()
 
@@ -37,7 +33,6 @@ def generar_reporte_pdf(df, pred_30, pred_90, modelo_tipo, accuracy):
     pdf.ln(10)
     pdf.image(graph_path, x=10, w=190)
 
-    # Guardar PDF
     pdf_path = "/mnt/data/reporte_prediccion_btc.pdf"
     pdf.output(pdf_path)
 
