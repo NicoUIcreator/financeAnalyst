@@ -14,7 +14,7 @@ from utils.generar_reporte import generar_reporte_pdf
 st.set_page_config(page_title="Predicción BTC", layout="wide")
 
 st.title("📈 Predicción Inteligente del Precio de BTC")
-st.image("https://cryptologos.cc/logos/bitcoin-btc-logo.png", width=100)
+st.image("https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=040", width=100)
 st.markdown("""
 Bienvenido a **CryptoForecast**, una herramienta de predicción del precio de Bitcoin (BTC) basada en aprendizaje automático.
 Carga tus propios datasets, límpialos automáticamente, visualiza tendencias históricas, selecciona modelos y genera predicciones.
