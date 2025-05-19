@@ -1,23 +1,22 @@
 import pandas as pd
 import numpy as np
+import os
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.linear_model import LinearRegression
 from xgboost import XGBRegressor
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from sklearn.metrics import mean_absolute_error
-import os
-
-
-def cargar_datos(archivo):
-    return pd.read_csv(archivo)
-
 
 def listar_bases_de_datos(directorio="data"):
     return [f for f in os.listdir(directorio) if f.endswith(".csv")]
 
+def cargar_datos(archivo):
+    return pd.read_csv(archivo)
 
 def limpiar_binance_csv(df):
+    # Normalizar nombres
+    df.columns = [c.strip().lower().replace(" ", "").replace("%", "pct").replace(".", "") for c in df.columns]
     rename_map = {
         "Date": "date",
         "Price": "price",
@@ -25,34 +24,34 @@ def limpiar_binance_csv(df):
         "High": "high",
         "Low": "low",
         "Vol.": "vol",
-        "Change %": "changepct"
+        "Change %": "changepct",
+        "date": "date", "fecha": "date",
+        "price": "price", "ultimo": "price",
+        "open": "open", "apertura": "open",
+        "high": "high", "máximo": "high",
+        "low": "low", "mínimo": "low",
+        "vol": "vol", "volumen": "vol",
+        "changepct": "changepct", "variacion": "changepct"
     }
-
     df = df.rename(columns={col: rename_map[col] for col in df.columns if col in rename_map})
+    if "date" not in df.columns:
+        raise ValueError("No se encontró una columna de fecha válida.")
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df.dropna(subset=["date"], inplace=True)
-    df = df.sort_values("date")
-    df.set_index("date", inplace=True)
+    df = df.sort_values("date").set_index("date")
 
-    df.columns = [c.strip().lower().replace(" ", "").replace("%", "pct").replace(".", "") for c in df.columns]
-
-    
-
-    
-
-    columnas_necesarias = ["price", "open", "high", "low", "vol", "changepct"]
-    for col in columnas_necesarias:
+    columnas_requeridas = ["price", "open", "high", "low", "vol", "changepct"]
+    for col in columnas_requeridas:
         if col not in df.columns:
             df[col] = np.nan
 
-    df = df[columnas_necesarias]
-    df = df.replace(to_replace=r",|%", value="", regex=True)
+    df = df[columnas_requeridas]
+    df = df.replace({",": "", "%": ""}, regex=True)
     df = df.replace({"M": "0000", "K": "0", "B": "0000000"}, regex=True)
     df["changepct"] = df["changepct"].astype(str).str.replace(",", ".")
-    df = df.astype(float)
-
-    return df.dropna()
-
+    df = df.apply(pd.to_numeric, errors="coerce")
+    df = df.dropna()
+    return df
 
 def entrenar_modelo(df, modelo_tipo="lstm"):
     datos = df["price"].values.reshape(-1, 1)
@@ -85,9 +84,7 @@ def entrenar_modelo(df, modelo_tipo="lstm"):
 
     X_test = X[-30:]
     y_test = y[-30:]
-
     return modelo, scaler, X_test, y_test
-
 
 def predecir_precio(df, modelo, scaler, dias=1, modelo_tipo="lstm"):
     datos = df["price"].values.reshape(-1, 1)
@@ -109,7 +106,6 @@ def predecir_precio(df, modelo, scaler, dias=1, modelo_tipo="lstm"):
 
     predicciones = scaler.inverse_transform(np.array(predicciones).reshape(-1, 1)).flatten()
     return predicciones
-
 
 def calcular_accuracy(y_true, y_pred):
     mae = mean_absolute_error(y_true, y_pred)
