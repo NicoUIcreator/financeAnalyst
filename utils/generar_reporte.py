@@ -1,39 +1,28 @@
-from fpdf import FPDF
+import streamlit as st
 import matplotlib.pyplot as plt
 
-def generar_reporte_pdf(df, pred_30, pred_90, modelo_tipo, accuracy):
-    # Guardar gráfico temporal (sin crear manualmente la carpeta)
-    graph_path = "/mnt/data/prediccion_btc.png"
+def mostrar_reporte_markdown(df, pred_30, pred_90, modelo_tipo, accuracy):
+    st.markdown("## 🧾 Informe de Predicción BTC")
+    
+    st.markdown(f"""
+**📅 Fecha de último dato disponible:** `{df.index[-1].date()}`  
+**🧠 Modelo utilizado:** `{modelo_tipo}`  
+**🎯 Accuracy del modelo sobre últimos 30 días:** `{accuracy:.2f}%`  
+    """)
 
-    plt.figure(figsize=(10, 4))
-    plt.plot(df.index, df["price"], label="Histórico")
-    plt.plot(pred_30.index, pred_30.values, label="Predicción 30 días")
-    plt.plot(pred_90.index, pred_90.values, label="Predicción 90 días", linestyle="--")
-    plt.title("Predicción del Precio BTC")
-    plt.legend()
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig(graph_path)
-    plt.close()
+    st.markdown("### 📈 Gráfico de Predicción")
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(df.index, df["price"], label="Histórico")
+    ax.plot(pred_30.index, pred_30.values, label="Predicción 30 días")
+    ax.plot(pred_90.index, pred_90.values, label="Predicción 90 días", linestyle="--")
+    ax.set_title("Predicción del Precio BTC")
+    ax.legend()
+    ax.tick_params(axis='x', rotation=45)
+    st.pyplot(fig)
 
-    # Crear PDF
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.set_text_color(40, 40, 40)
-
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, "Reporte de Predicción BTC", ln=True, align="C")
-
-    pdf.set_font("Arial", size=12)
-    pdf.ln(10)
-    pdf.cell(200, 10, f"Modelo utilizado: {modelo_tipo}", ln=True)
-    pdf.cell(200, 10, f"Accuracy sobre los últimos 30 días: {accuracy:.2f}%", ln=True)
-
-    pdf.ln(10)
-    pdf.image(graph_path, x=10, w=190)
-
-    pdf_path = "/mnt/data/reporte_prediccion_btc.pdf"
-    pdf.output(pdf_path)
-
-    return pdf_path
+    st.markdown("### 📋 Resumen")
+    st.markdown("""
+- Los datos han sido normalizados y limpiados automáticamente.
+- Se usó una ventana de 30 días para alimentar al modelo.
+- Se generaron predicciones para 30 y 90 días hacia adelante.
+    """)

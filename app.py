@@ -9,7 +9,7 @@ from utils.funciones import (
     predecir_precio,
     calcular_accuracy
 )
-from utils.generar_reporte import generar_reporte_pdf
+from utils.generar_reporte import mostrar_reporte_markdown
 
 st.set_page_config(page_title="Predicción BTC", layout="wide")
 
@@ -137,16 +137,14 @@ elif seccion == "📋 Comparación y exportación":
             file_name="prediccion_90_dias.csv"
         )
 
-        # Botón para exportar el informe PDF
-        st.subheader("📄 Informe PDF")
-        ruta_pdf = generar_reporte_pdf(
+        # Informe en Markdown en pantalla
+        st.subheader("🧾 Informe en Markdown")
+        mostrar_reporte_markdown(
             st.session_state.df_limpio,
             st.session_state.pred_30,
             st.session_state.pred_90,
             st.session_state.modelo_tipo,
             st.session_state.accuracy
         )
-        with open(ruta_pdf, "rb") as file:
-            st.download_button("📥 Descargar informe en PDF", file, file_name="reporte_prediccion_btc.pdf")
     else:
         st.info("No hay predicciones generadas aún. Ve a la sección de predicción primero.")
