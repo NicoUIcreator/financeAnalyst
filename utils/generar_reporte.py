@@ -1,8 +1,12 @@
 from fpdf import FPDF
 import matplotlib.pyplot as plt
+import os
 
 def generar_reporte_pdf(df, pred_30, pred_90, modelo_tipo, accuracy):
-    # Crear imagen del gráfico
+    # Crear carpeta si no existe
+    os.makedirs("/mnt/data", exist_ok=True)
+
+    # Guardar gráfico temporal
     plt.figure(figsize=(10, 4))
     plt.plot(df.index, df["price"], label="Histórico")
     plt.plot(pred_30.index, pred_30.values, label="Predicción 30 días")
@@ -24,6 +28,7 @@ def generar_reporte_pdf(df, pred_30, pred_90, modelo_tipo, accuracy):
 
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(200, 10, "Reporte de Predicción BTC", ln=True, align="C")
+
     pdf.set_font("Arial", size=12)
     pdf.ln(10)
     pdf.cell(200, 10, f"Modelo utilizado: {modelo_tipo}", ln=True)
