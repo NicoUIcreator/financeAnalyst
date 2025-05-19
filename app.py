@@ -83,35 +83,47 @@ elif seccion == "📊 Visualización de datos":
 # SECCIÓN 3
 elif seccion == "🤖 Predicción y resultados":
     st.header("🤖 Predicción")
+
     df = st.session_state.df
     if df is not None:
-        modelo_tipo = st.selectbox("Modelo a utilizar", ["lstm", "xgboost", "linear"])
-        progreso = st.progress(0, text="⏳ Entrenando modelo...")
-        modelo, scaler, X_test, y_test = entrenar_modelo(df, modelo_tipo=modelo_tipo)
-        progreso.progress(50, text="⏳ Calculando predicción...")
-        pred_30 = predecir_precio(df, modelo, scaler, dias=30, modelo_tipo=modelo_tipo)
-        pred_90 = predecir_precio(df, modelo, scaler, dias=90, modelo_tipo=modelo_tipo)
-        y_pred_test = modelo.predict(X_test)
-        if modelo_tipo != "lstm":
-            y_pred_test = y_pred_test.reshape(-1, 1)
-        y_pred_test_inv = scaler.inverse_transform(y_pred_test).flatten()
-        ultimos_reales = df["price"].values[-30:]
-        acc = calcular_accuracy(ultimos_reales, y_pred_test_inv)
-        st.success(f"✅ Accuracy del modelo ({modelo_tipo}): **{acc:.2f}%**")
-        progreso.progress(100, text="✅ Predicción completa.")
-        fechas_30 = pd.date_range(df.index[-1], periods=31, freq='D')[1:]
-        fechas_90 = pd.date_range(df.index[-1], periods=91, freq='D')[1:]
-        st.subheader("📈 Predicción futura")
-        plt.figure(figsize=(12, 4))
-        plt.plot(df.index, df["price"], label="Histórico")
-        plt.plot(fechas_30, pred_30, label="Predicción 30 días")
-        plt.plot(fechas_90, pred_90, label="Predicción 90 días", linestyle="--")
-        plt.legend()
-        st.pyplot(plt)
-        st.session_state.pred_30 = pd.Series(pred_30, index=fechas_30)
-        st.session_state.pred_90 = pd.Series(pred_90, index=fechas_90)
-        st.session_state.modelo_tipo = modelo_tipo
-        st.session_state.accuracy = acc
+        st.markdown("Selecciona un modelo de predicción y presiona **Entrenar modelo**.")
+
+        modelo_tipo = st.selectbox("Modelo a utilizar", ["lstm", "xgboost", "linear"], key="selector_modelo")
+
+        if st.button("🚀 Entrenar modelo"):
+            progreso = st.progress(0, text="⏳ Entrenando modelo...")
+            modelo, scaler, X_test, y_test = entrenar_modelo(df, modelo_tipo=modelo_tipo)
+            progreso.progress(50, text="⏳ Calculando predicción...")
+
+            pred_30 = predecir_precio(df, modelo, scaler, dias=30, modelo_tipo=modelo_tipo)
+            pred_90 = predecir_precio(df, modelo, scaler, dias=90, modelo_tipo=modelo_tipo)
+
+            y_pred_test = modelo.predict(X_test)
+            if modelo_tipo != "lstm":
+                y_pred_test = y_pred_test.reshape(-1, 1)
+
+            y_pred_test_inv = scaler.inverse_transform(y_pred_test).flatten()
+            ultimos_reales = df["price"].values[-30:]
+            acc = calcular_accuracy(ultimos_reales, y_pred_test_inv)
+
+            st.success(f"✅ Accuracy del modelo ({modelo_tipo}): **{acc:.2f}%**")
+            progreso.progress(100, text="✅ Predicción completa.")
+
+            fechas_30 = pd.date_range(df.index[-1], periods=31, freq='D')[1:]
+            fechas_90 = pd.date_range(df.index[-1], periods=91, freq='D')[1:]
+
+            st.subheader("📈 Predicción futura")
+            plt.figure(figsize=(12, 4))
+            plt.plot(df.index, df["price"], label="Histórico")
+            plt.plot(fechas_30, pred_30, label="Predicción 30 días")
+            plt.plot(fechas_90, pred_90, label="Predicción 90 días", linestyle="--")
+            plt.legend()
+            st.pyplot(plt)
+
+            st.session_state.pred_30 = pd.Series(pred_30, index=fechas_30)
+            st.session_state.pred_90 = pd.Series(pred_90, index=fechas_90)
+            st.session_state.modelo_tipo = modelo_tipo
+            st.session_state.accuracy = acc
     else:
         st.warning("⚠️ Primero debes cargar y limpiar un dataset.")
 
